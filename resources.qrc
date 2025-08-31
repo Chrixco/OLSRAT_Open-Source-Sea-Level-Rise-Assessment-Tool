@@ -1,0 +1,16 @@
+<RCC version="1.0">
+  <qresource prefix="/slr_vm">
+    <file>Icons/Q_SLR_Logo_Long.svg</file>
+    <file>Icons/16.png</file>
+    <file>Icons/32.png</file>
+    <file>Icons/64.png</file>
+    <file>Icons/128.png</file>
+    <file>Icons/256.png</file>
+    <file>Icons/512.png</file>
+    <!-- Category icons -->
+    <file>Icons/Data_Prep_Logo/Assets.xcassets/AppIcon.appiconset/_/32.png</file>
+    <file>Icons/SLR_Alg_Logo/Assets.xcassets/AppIcon.appiconset/_/32.png</file>
+    <file>Icons/Social_Analysis_Logo/Assets.xcassets/AppIcon.appiconset/_/32.png</file>
+    <file>Icons/Terrain_Analysis_Logo/Assets.xcassets/AppIcon.appiconset/_/32.png</file>
+  </qresource>
+</RCC>

@@ -1,0 +1,51 @@
+[general]
+name=SLR Vulnerability Mapper
+qgisMinimumVersion=3.30
+description=Assess and visualize sea-level-rise & flood exposure
+version=0.1
+author=Christian Xavier Corral Burau
+email=christianxcorral@gmail.com
+
+about=
+  <h2>🌍 SLR Vulnerability Mapper</h2>
+  <p>
+  A QGIS plugin to map <b>flood exposure</b> and <b>urban vulnerability</b> under
+  sea-level rise and extreme water level scenarios.
+  </p>
+  <p>
+  The tool integrates:
+  <ul>
+    <li><b>IPCC AR6 (2021)</b> global mean sea-level projections</li>
+    <li><b>FACTS framework (2023)</b> for parametric & structural uncertainty</li>
+    <li><b>CODEC return period datasets</b> for storm surge & tide extremes</li>
+    <li><b>OpenTopography DEMs</b> and user-provided elevation data</li>
+  </ul>
+  </p>
+  <p>
+  Designed for <i>scientists, urban planners, and decision-makers</i>,
+  the plugin supports:
+  <ul>
+    <li>Parcel/building-level risk evaluation</li>
+    <li>Integration of social vulnerability indicators</li>
+    <li>Evidence-based planning for <b>climate adaptation</b> and <b>resilient cities</b></li>
+  </ul>
+  </p>
+  <p>
+  <b>Why use this plugin?</b>  
+  It provides a transparent, open-source framework to combine
+  <i>sea-level rise projections</i> with <i>extreme sea-level hazards</i>,
+  enabling communities to better prepare for coastal futures.
+  </p>
+
+tracker=https://github.com/christianxcorral/slr_vulnerability_mapper/issues
+repository=https://github.com/christianxcorral/slr_vulnerability_mapper
+homepage=https://github.com/christianxcorral/slr_vulnerability_mapper
+
+tags=python, processing, sea level rise, flooding, vulnerability, resilience, climate adaptation, urban planning
+category=Analysis
+icon=Icons/32.svg
+
+hasProcessingProvider=yes
+experimental=no
+deprecated=no
+server=no
