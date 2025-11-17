@@ -2,97 +2,245 @@ from qgis.core import (
     QgsProcessingAlgorithm, QgsProcessingParameterRasterLayer,
     QgsProcessingParameterCrs, QgsProcessingParameterNumber, QgsProcessingParameterExtent,
     QgsProcessingParameterEnum, QgsProcessingParameterBoolean, QgsProcessingParameterRasterDestination,
-    QgsProcessingException, QgsCoordinateReferenceSystem
+    QgsProcessingException, QgsCoordinateReferenceSystem, QgsProcessingParameterString,
+    QgsCoordinateTransform, QgsRectangle
 )
+from qgis.PyQt.QtGui import QIcon
 from qgis import processing
 import requests, tempfile, os
 
 class AlgFetchDEM(QgsProcessingAlgorithm):
-    INPUT_SOURCE = "INPUT_SOURCE"   # Local DEM or OT
-    INPUT_DEM    = "INPUT_DEM"
+    DEM_TYPE     = "DEM_TYPE"
+    EXTENT       = "EXTENT"
     TARGET_CRS   = "TARGET_CRS"
     PIXEL_SIZE   = "PIXEL_SIZE"
-    EXTENT       = "EXTENT"
     RESAMPLING   = "RESAMPLING"
     CLIP         = "CLIP"
+    API_KEY      = "API_KEY"
     OUTPUT       = "OUTPUT"
 
-    DEM_SOURCE_OPTS = ["Local DEM", "Copernicus 90m (OpenTopography)", "Copernicus 30m (OpenTopography)"]
+    DEM_TYPE_OPTS = ["Copernicus 90m (OpenTopography)", "Copernicus 30m (OpenTopography)"]
     RESAMPLING_OPTS = ["Nearest", "Bilinear", "Cubic"]
 
     def name(self): return "fetch_dem_prep"
-    def displayName(self): return "Fetch & Prepare DEM (local or OpenTopography)"
+    def displayName(self): return "Fetch DEM from OpenTopography"
     def group(self): return "Data Preparation"
     def groupId(self): return "data_preparation"
 
+    def icon(self):
+        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                  "Icons", "Data_Prep_Logo", "Assets.xcassets",
+                                  "AppIcon.appiconset", "_", "32.png"))
+
     def initAlgorithm(self, config=None):
         self.addParameter(QgsProcessingParameterEnum(
-            self.INPUT_SOURCE, "DEM source", options=self.DEM_SOURCE_OPTS, defaultValue=0
+            self.DEM_TYPE, "DEM Resolution", options=self.DEM_TYPE_OPTS, defaultValue=0
         ))
-        self.addParameter(QgsProcessingParameterRasterLayer(
-            self.INPUT_DEM, "Input DEM (if local)", optional=True
+        self.addParameter(QgsProcessingParameterExtent(
+            self.EXTENT, "Area of Interest (required - draw rectangle or enter coordinates)"
         ))
         self.addParameter(QgsProcessingParameterCrs(
             self.TARGET_CRS, "Target CRS", defaultValue=QgsCoordinateReferenceSystem("EPSG:3857")
         ))
         self.addParameter(QgsProcessingParameterNumber(
-            self.PIXEL_SIZE, "Target pixel size",
-            type=QgsProcessingParameterNumber.Double, defaultValue=10.0, minValue=0.0001
+            self.PIXEL_SIZE, "Target pixel size (meters)",
+            type=QgsProcessingParameterNumber.Double, defaultValue=30.0, minValue=0.0001
         ))
         self.addParameter(QgsProcessingParameterEnum(
-            self.RESAMPLING, "Resampling", options=self.RESAMPLING_OPTS, defaultValue=1
-        ))
-        self.addParameter(QgsProcessingParameterExtent(
-            self.EXTENT, "Area of interest / Clip extent", optional=True
+            self.RESAMPLING, "Resampling method", options=self.RESAMPLING_OPTS, defaultValue=1
         ))
         self.addParameter(QgsProcessingParameterBoolean(
-            self.CLIP, "Clip to extent", defaultValue=False
+            self.CLIP, "Clip to exact extent", defaultValue=True
+        ))
+        self.addParameter(QgsProcessingParameterString(
+            self.API_KEY, "OpenTopography API Key (optional - get from opentopography.org)",
+            optional=True, defaultValue=""
         ))
         self.addParameter(QgsProcessingParameterRasterDestination(
-            self.OUTPUT, "Output DEM (prepped)"
+            self.OUTPUT, "Output DEM"
         ))
 
     def processAlgorithm(self, p, context, feedback):
-        source_choice = self.parameterAsEnum(p, self.INPUT_SOURCE, context)
+        dem_type_choice = self.parameterAsEnum(p, self.DEM_TYPE, context)
+        ext = self.parameterAsExtent(p, self.EXTENT, context)
         crs = self.parameterAsCrs(p, self.TARGET_CRS, context)
         px  = self.parameterAsDouble(p, self.PIXEL_SIZE, context)
         res = {0:0, 1:1, 2:2}[self.parameterAsEnum(p, self.RESAMPLING, context)]
-        ext = self.parameterAsExtent(p, self.EXTENT, context)
         clip= self.parameterAsBoolean(p, self.CLIP, context)
+        api_key = self.parameterAsString(p, self.API_KEY, context)
 
-        # --- Fetch DEM depending on source ---
-        if source_choice == 0:  # Local DEM
-            dem = self.parameterAsRasterLayer(p, self.INPUT_DEM, context)
-            if dem is None:
-                raise QgsProcessingException("No DEM provided.")
-            dem_path = dem.source()
-
-        else:  # OpenTopography fetch
-            if ext is None or ext.isEmpty():
-                raise QgsProcessingException("Extent is required when fetching from OpenTopography.")
-
-            # Choose DEM type
-            demtype = "COP90" if source_choice == 1 else "COP30"
-
-            url = (
-                f"https://portal.opentopography.org/API/globaldem?"
-                f"demtype={demtype}&west={ext.xMinimum()}&south={ext.yMinimum()}&"
-                f"east={ext.xMaximum()}&north={ext.yMaximum()}&outputFormat=GTiff"
+        # --- Validate extent is provided ---
+        if ext is None or ext.isEmpty():
+            raise QgsProcessingException(
+                "Area of Interest is required. "
+                "Please define an extent by drawing a rectangle on the map or entering coordinates."
             )
-            feedback.pushInfo(f"Requesting DEM from OpenTopography: {url}")
 
-            tmpfile = tempfile.NamedTemporaryFile(delete=False, suffix=".tif")
-            tmpfile.close()
+        # Transform extent to WGS84 (EPSG:4326) for OpenTopography API
+        # The API requires lat/lon coordinates in degrees
+        extent_crs = self.parameterAsExtentCrs(p, self.EXTENT, context)
+        wgs84 = QgsCoordinateReferenceSystem("EPSG:4326")
 
-            r = requests.get(url, stream=True)
-            if r.status_code != 200:
-                raise QgsProcessingException(f"Failed to fetch DEM from OpenTopography: {r.text}")
+        if extent_crs != wgs84:
+            try:
+                transform = QgsCoordinateTransform(extent_crs, wgs84, context.transformContext())
+                # Transform the extent to WGS84
+                ext_wgs84 = transform.transformBoundingBox(ext)
+            except Exception as e:
+                raise QgsProcessingException(f"Failed to transform extent to WGS84: {str(e)}")
+        else:
+            ext_wgs84 = ext
 
+        # Validate extent coordinates are valid numbers
+        try:
+            west = float(ext_wgs84.xMinimum())
+            south = float(ext_wgs84.yMinimum())
+            east = float(ext_wgs84.xMaximum())
+            north = float(ext_wgs84.yMaximum())
+        except (ValueError, TypeError):
+            raise QgsProcessingException("Invalid extent coordinates.")
+
+        # Validate extent is reasonable (not inverted or zero-size)
+        if west >= east or south >= north:
+            raise QgsProcessingException(
+                "Invalid extent: coordinates appear inverted. "
+                "Ensure west < east and south < north."
+            )
+
+        # Validate lat/lon bounds (OpenTopography global coverage)
+        if west < -180 or east > 180 or south < -90 or north > 90:
+            raise QgsProcessingException(
+                f"Extent coordinates out of valid range.\n"
+                f"Longitude must be -180 to 180, Latitude must be -90 to 90.\n"
+                f"Got: west={west:.2f}, east={east:.2f}, south={south:.2f}, north={north:.2f}"
+            )
+
+        # Validate area size (hard limit for safety) - now in degrees
+        width = east - west
+        height = north - south
+        area_deg = width * height
+
+        # Maximum area limit: 5 degrees squared (~555km x 555km at equator)
+        MAX_AREA_DEG = 5.0
+        if area_deg > MAX_AREA_DEG:
+            raise QgsProcessingException(
+                f"Area too large ({area_deg:.2f}°²). Maximum allowed: {MAX_AREA_DEG}°². "
+                "Please use a smaller extent. For large areas, download tiles separately."
+            )
+
+        # Warn if moderately large (>0.5°²)
+        if area_deg > 0.5:
+            feedback.pushWarning(
+                f"⚠ Large area requested ({area_deg:.2f}°²). Download may take several minutes."
+            )
+
+        feedback.pushInfo(f"Extent in WGS84: {west:.6f}, {south:.6f} to {east:.6f}, {north:.6f} ({area_deg:.4f}°²)")
+
+        # Choose DEM type: 0=COP90, 1=COP30
+        demtype = "COP90" if dem_type_choice == 0 else "COP30"
+
+        # Sanitize API key (remove any whitespace, limit length)
+        sanitized_api_key = ""
+        if api_key and api_key.strip():
+            sanitized_api_key = api_key.strip()[:100]  # Max 100 chars for safety
+            # Basic validation: API keys are typically alphanumeric
+            if not sanitized_api_key.replace('-', '').replace('_', '').isalnum():
+                feedback.pushWarning(
+                    "⚠ API key contains unusual characters. If download fails, "
+                    "verify your API key from opentopography.org"
+                )
+            feedback.pushInfo("Using provided OpenTopography API key.")
+        else:
+            feedback.pushInfo(
+                "No API key provided. Using free tier (limited to small areas, "
+                "may have rate limits). Get a key at opentopography.org for larger areas."
+            )
+
+        # Build URL with sanitized coordinates
+        base_url = "https://portal.opentopography.org/API/globaldem"
+        params = {
+            'demtype': demtype,
+            'west': f"{west:.6f}",
+            'south': f"{south:.6f}",
+            'east': f"{east:.6f}",
+            'north': f"{north:.6f}",
+            'outputFormat': 'GTiff'
+        }
+        if sanitized_api_key:
+            params['API_Key'] = sanitized_api_key
+
+        # Use requests params for proper URL encoding
+        feedback.pushInfo(f"Requesting DEM from OpenTopography ({demtype})...")
+        feedback.setProgress(10)
+
+        tmpfile = tempfile.NamedTemporaryFile(delete=False, suffix=".tif")
+        tmpfile.close()
+
+        try:
+            # Add proper headers for identification
+            headers = {
+                'User-Agent': 'QGIS-SLR-Vulnerability-Mapper/0.1 (QGIS Plugin)'
+            }
+            r = requests.get(base_url, params=params, headers=headers, stream=True, timeout=60)
+
+            if r.status_code == 429:
+                raise QgsProcessingException(
+                    "Rate limit exceeded. Please wait and try again, or provide an API key "
+                    "from opentopography.org for higher limits."
+                )
+            elif r.status_code == 403:
+                raise QgsProcessingException(
+                    "Access denied. Area may be too large for free tier. "
+                    "Try a smaller extent or use an API key from opentopography.org."
+                )
+            elif r.status_code != 200:
+                raise QgsProcessingException(
+                    f"Failed to fetch DEM from OpenTopography (HTTP {r.status_code}): {r.text[:200]}"
+                )
+
+            # Download with progress and size limits
+            feedback.pushInfo("Downloading DEM...")
+            feedback.setProgress(30)
+            total_size = int(r.headers.get('content-length', 0))
+
+            # Safety check: max file size 500MB (reasonable for DEM tiles)
+            MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
+            if total_size > MAX_FILE_SIZE:
+                raise QgsProcessingException(
+                    f"File too large ({total_size / 1024 / 1024:.1f} MB). "
+                    f"Maximum allowed: {MAX_FILE_SIZE / 1024 / 1024:.0f} MB. "
+                    "Please use a smaller extent."
+                )
+
+            downloaded = 0
             with open(tmpfile.name, "wb") as f:
                 for chunk in r.iter_content(chunk_size=8192):
+                    if feedback.isCanceled():
+                        raise QgsProcessingException("Download canceled by user.")
                     f.write(chunk)
+                    downloaded += len(chunk)
 
-            dem_path = tmpfile.name
+                    # Secondary check during download
+                    if downloaded > MAX_FILE_SIZE:
+                        raise QgsProcessingException(
+                            "Download exceeded maximum file size. Operation aborted."
+                        )
+
+                    if total_size > 0:
+                        progress = 30 + int((downloaded / total_size) * 40)
+                        feedback.setProgress(min(progress, 70))
+
+            feedback.pushInfo(f"✓ Downloaded DEM ({downloaded / 1024 / 1024:.2f} MB)")
+            feedback.setProgress(75)
+
+        except requests.exceptions.Timeout:
+            raise QgsProcessingException(
+                "Download timed out. Try a smaller extent or check your internet connection."
+            )
+        except requests.exceptions.RequestException as e:
+            raise QgsProcessingException(f"Network error: {str(e)}")
+
+        dem_path = tmpfile.name
 
         # --- Reproject and resample ---
         warp = processing.run("gdal:warpreproject", {
@@ -120,11 +268,36 @@ class AlgFetchDEM(QgsProcessingAlgorithm):
     def createInstance(self): 
         return AlgFetchDEM()
 
-    def shortHelpString(self): 
+    def shortHelpString(self):
         return (
-            "Fetch and prepare a DEM.\n"
-            "- Source: Local DEM or Copernicus 90m/30m via OpenTopography API.\n"
-            "- Reproject and resample to the chosen CRS and pixel size.\n"
-            "- Optionally clip to a rectangular AOI (extent).\n"
-            "Note: For OpenTopography, you must provide an AOI extent."
+            "<h2>Fetch DEM from OpenTopography</h2>"
+            "<p>Download global Digital Elevation Models directly from OpenTopography and prepare them for flood analysis.</p>"
+            "<h3>DEM Options:</h3>"
+            "<ul>"
+            "<li><b>Copernicus 90m:</b> Global coverage at ~90m resolution</li>"
+            "<li><b>Copernicus 30m:</b> Global coverage at ~30m resolution (larger file sizes)</li>"
+            "</ul>"
+            "<h3>Usage:</h3>"
+            "<ol>"
+            "<li>Select DEM resolution (90m or 30m)</li>"
+            "<li>Draw or enter Area of Interest (AOI) - <b>required</b></li>"
+            "<li>Choose target CRS and pixel size for output</li>"
+            "<li>Optionally provide API key for larger areas</li>"
+            "</ol>"
+            "<h3>API Key (Optional):</h3>"
+            "<p>Free tier allows small areas without API key but has rate limits. For larger areas:</p>"
+            "<ol>"
+            "<li>Register at <a href='https://opentopography.org'>opentopography.org</a></li>"
+            "<li>Generate API key from your account settings</li>"
+            "<li>Enter key in the API Key field</li>"
+            "</ol>"
+            "<h3>Limits:</h3>"
+            "<ul>"
+            "<li>Maximum area: 5°² (~555km × 555km at equator)</li>"
+            "<li>Maximum file size: 500 MB</li>"
+            "<li>For larger regions, download multiple tiles separately</li>"
+            "</ul>"
+            "<p><b>Data Source:</b> Copernicus DEM GLO-90/GLO-30 distributed by OpenTopography "
+            "(<a href='https://doi.org/10.5069/G9028PQB'>doi:10.5069/G9028PQB</a>)</p>"
+            "<p><b>Note:</b> Downloaded DEM is automatically reprojected and resampled to your specified settings.</p>"
         )

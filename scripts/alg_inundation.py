@@ -8,6 +8,7 @@ area statistics per AOI polygon.
 """
 
 from qgis.PyQt.QtCore import QCoreApplication, QVariant
+from qgis.PyQt.QtGui import QIcon
 from qgis.core import (
     QgsProcessing, QgsProcessingAlgorithm, QgsProcessingException,
     QgsProcessingParameterRasterLayer, QgsProcessingParameterVectorLayer,
@@ -36,11 +37,11 @@ class AlgInundation(QgsProcessingAlgorithm):
     def displayName(self): 
         return self.tr("DEM → Flooded extent + AOI stats (User level)")
 
-    def group(self): 
-        return self.tr("SLR / Flood tools")
+    def group(self):
+        return self.tr("Flood Exposure")
 
-    def groupId(self): 
-        return "slr_flood_tools"
+    def groupId(self):
+        return "flood_exposure"
 
     def shortHelpString(self):
         return self.tr(
@@ -49,8 +50,14 @@ class AlgInundation(QgsProcessingAlgorithm):
             "per AOI polygon (if provided)."
         )
 
-    def createInstance(self): 
+    def createInstance(self):
         return AlgInundation()
+
+    def icon(self):
+        import os
+        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                  "Icons", "SLR_Alg_Logo", "Assets.xcassets",
+                                  "AppIcon.appiconset", "_", "32.png"))
 
     # ---------- parameters ----------
     def initAlgorithm(self, config=None):

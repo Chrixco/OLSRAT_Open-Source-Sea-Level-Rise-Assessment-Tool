@@ -5,6 +5,7 @@ Reprojects a vector layer to a target CRS, preserving attributes and geometry ty
 """
 
 from qgis.PyQt.QtCore import QCoreApplication
+from qgis.PyQt.QtGui import QIcon
 from qgis.core import (
     QgsProcessing,
     QgsProcessingAlgorithm,
@@ -50,6 +51,12 @@ class AlgReprojectVector(QgsProcessingAlgorithm):
 
     def createInstance(self):
         return AlgReprojectVector()
+
+    def icon(self):
+        import os
+        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                  "Icons", "Data_Prep_Logo", "Assets.xcassets",
+                                  "AppIcon.appiconset", "_", "32.png"))
 
     def tr(self, message):
         return QCoreApplication.translate("AlgReprojectVector", message)

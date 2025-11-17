@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from qgis.core import (QgsProcessing, QgsProcessingAlgorithm, QgsProcessingParameterRasterLayer, QgsProcessingParameterRasterDestination)
 from qgis.PyQt.QtCore import QCoreApplication
+from qgis.PyQt.QtGui import QIcon
 import processing
 
 class AlgSlope(QgsProcessingAlgorithm):
@@ -28,4 +29,10 @@ class AlgSlope(QgsProcessingAlgorithm):
     def groupId(self): return "terrain_analysis"
     def shortHelpString(self): return self.tr("Compute slope in degrees from a DEM raster.")
     def createInstance(self): return AlgSlope()
+
+    def icon(self):
+        import os
+        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                  "Icons", "Terrain_Analysis_Logo", "Assets.xcassets",
+                                  "AppIcon.appiconset", "_", "32.png"))
     def tr(self, msg): return QCoreApplication.translate("AlgSlope", msg)

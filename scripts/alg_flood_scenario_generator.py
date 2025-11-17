@@ -17,6 +17,7 @@ from osgeo import gdal
 import processing
 
 from qgis.PyQt.QtCore import QVariant, QCoreApplication
+from qgis.PyQt.QtGui import QIcon
 from qgis.core import (
     QgsProcessing,
     QgsProcessingAlgorithm,
@@ -409,8 +410,6 @@ class AlgIPCCScenarios(QgsProcessingAlgorithm):
         out_fields = QgsFields()
         for f in aoi.fields():
             out_fields.append(f)
-        out_fields.append
-        
         out_fields.append(QgsField("Flooded", QVariant.Int))
 
         mem = QgsVectorLayer(f"Polygon?crs={aoi.crs().authid()}", "mem", "memory")
@@ -538,8 +537,14 @@ class AlgIPCCScenarios(QgsProcessingAlgorithm):
             "one for flooded features and one for non-flooded."
         )
 
-    def createInstance(self): 
+    def createInstance(self):
         return AlgIPCCScenarios()
+
+    def icon(self):
+        import os
+        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                  "Icons", "SLR_Alg_Logo", "Assets.xcassets",
+                                  "AppIcon.appiconset", "_", "32.png"))
 
     def tr(self, m): 
         return QCoreApplication.translate("AlgIPCCScenarios", m)

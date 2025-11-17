@@ -41,9 +41,21 @@ tracker=https://github.com/christianxcorral/slr_vulnerability_mapper/issues
 repository=https://github.com/christianxcorral/slr_vulnerability_mapper
 homepage=https://github.com/christianxcorral/slr_vulnerability_mapper
 
+changelog=
+  0.1 - Initial release
+    * IPCC AR6 global mean sea-level projections integration
+    * CODEC return period datasets for storm surge and tide extremes
+    * OpenTopography DEM fetching and preprocessing tools
+    * Processing algorithms for flood exposure mapping
+    * Social Vulnerability Index (SVI) calculator
+    * Terrain analysis tools (slope, aspect, hillshade)
+    * Modern category-based GUI toolkit
+
+license=GNU GPL v2
+
 tags=python, processing, sea level rise, flooding, vulnerability, resilience, climate adaptation, urban planning
 category=Analysis
-icon=Icons/32.svg
+icon=Icons/32.png
 
 hasProcessingProvider=yes
 experimental=no

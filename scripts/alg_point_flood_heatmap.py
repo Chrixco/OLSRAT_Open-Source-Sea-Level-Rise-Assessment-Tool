@@ -22,6 +22,7 @@ from qgis.core import (
     QgsRaster,
 )
 from qgis.PyQt.QtCore import QVariant, QCoreApplication
+from qgis.PyQt.QtGui import QIcon
 
 
 class AlgPointFloodHeatmap(QgsProcessingAlgorithm):
@@ -152,6 +153,12 @@ class AlgPointFloodHeatmap(QgsProcessingAlgorithm):
 
     def createInstance(self):
         return AlgPointFloodHeatmap()
+
+    def icon(self):
+        import os
+        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                  "Icons", "SLR_Alg_Logo", "Assets.xcassets",
+                                  "AppIcon.appiconset", "_", "32.png"))
 
     def tr(self, message):
         return QCoreApplication.translate("AlgPointFloodHeatmap", message)
