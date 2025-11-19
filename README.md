@@ -1,4 +1,4 @@
-# 🌊 SLR Vulnerability Mapper
+# 🌊 OLSRAT_Open-Source-Sea-Level-Rise-Assessment-Tool
 
 [![QGIS](https://img.shields.io/badge/QGIS-3.30+-green.svg)](https://qgis.org)
 [![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
@@ -243,11 +243,11 @@ This plugin is designed for:
 - [ ] Integration with more DEM sources
 
 ### v1.0 (Future)
-- [ ] Web-based SaaS version
+- [ ] Web-based version
 - [ ] Real-time data integration
 - [ ] Machine learning flood prediction
-- [ ] Mobile field data collection
 
 ---
+
 
 **⭐ If you find this plugin useful, please star the repository!**
