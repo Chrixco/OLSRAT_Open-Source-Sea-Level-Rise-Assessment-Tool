@@ -1,38 +1,48 @@
 [general]
 name=OSLRAT
 qgisMinimumVersion=3.30
-description=Open-Source Sea-Level Rise Assessment Tool - Assess and visualize sea-level-rise & flood exposure
-version=0.1
+description=Open-Source Sea-Level Rise Assessment Tool - Assess and visualize sea-level-rise & flood exposure with IPCC AR6 projections, interactive dashboards, and social vulnerability analysis
+version=0.2
 author=Christian Xavier Corral Burau
 email=christianxcorral@gmail.com
 
 about=
   <h2>🌍 OSLRAT - Open-Source Sea-Level Rise Assessment Tool</h2>
   <p>
-  A QGIS plugin to map <b>flood exposure</b> and <b>urban vulnerability</b> under
-  sea-level rise and extreme water level scenarios.
+  A professional QGIS plugin to map <b>flood exposure</b> and <b>urban vulnerability</b> under
+  sea-level rise and extreme water level scenarios with cutting-edge climate science integration.
   </p>
   <p>
-  The tool integrates:
+  <b>🔬 Climate Science Integration:</b>
   <ul>
-    <li><b>IPCC AR6 (2021)</b> global mean sea-level projections</li>
+    <li><b>IPCC AR6 (2021)</b> global mean sea-level projections (5 SSP scenarios)</li>
     <li><b>FACTS framework (2023)</b> for parametric & structural uncertainty</li>
-    <li><b>CODEC return period datasets</b> for storm surge & tide extremes</li>
-    <li><b>OpenTopography DEMs</b> and user-provided elevation data</li>
+    <li><b>CODEC return period datasets</b> for storm surge & tide extremes (1-1000 year)</li>
+    <li><b>OpenTopography DEMs</b> (Copernicus 30m/90m) and user-provided elevation data</li>
   </ul>
   </p>
   <p>
-  Designed for <i>scientists, urban planners, and decision-makers</i>,
+  <b>📊 New Features in v0.2:</b>
+  <ul>
+    <li><b>Interactive Data Visualization Dashboard</b> - Charts, statistics, and comparisons</li>
+    <li><b>OSM Data Fetching</b> - Download buildings and streets via Overpass API</li>
+    <li><b>Population Impact Analysis</b> - Proportional distribution and filtering</li>
+    <li><b>Memory & Performance Improvements</b> - Fixed leaks, optimized dialogs</li>
+    <li><b>Enhanced User Experience</b> - Non-modal windows, better workflow</li>
+  </ul>
+  </p>
+  <p>
+  Designed for <i>scientists, urban planners, emergency managers, and decision-makers</i>,
   the plugin supports:
   <ul>
-    <li>Parcel/building-level risk evaluation</li>
-    <li>Integration of social vulnerability indicators</li>
+    <li>Parcel/building-level flood risk evaluation</li>
+    <li>Social vulnerability index (SVI) calculation</li>
+    <li>Interactive visualization with export capabilities</li>
     <li>Evidence-based planning for <b>climate adaptation</b> and <b>resilient cities</b></li>
   </ul>
   </p>
   <p>
-  <b>Why use this plugin?</b>  
-  It provides a transparent, open-source framework to combine
+  <b>Why OSLRAT?</b> Transparent, open-source framework combining
   <i>sea-level rise projections</i> with <i>extreme sea-level hazards</i>,
   enabling communities to better prepare for coastal futures.
   </p>
@@ -42,7 +52,20 @@ repository=https://github.com/Chrixco/OLSRAT_Open-Source-Sea-Level-Rise-Assessme
 homepage=https://github.com/Chrixco/OLSRAT_Open-Source-Sea-Level-Rise-Assessment-Tool
 
 changelog=
-  0.1 - Initial release
+  0.2 - Major Update (2025-01)
+    * NEW: Interactive Data Visualization Dashboard with charts and statistics
+    * NEW: OSM Buildings & Streets fetching via Overpass API
+    * NEW: Population impact analysis with proportional distribution
+    * IMPROVED: Fixed critical memory leaks in window management
+    * IMPROVED: Non-modal dialogs for better QGIS integration
+    * IMPROVED: QThread worker lifecycle management
+    * IMPROVED: Matplotlib figure cleanup and resource management
+    * IMPROVED: Singleton pattern for dialogs prevents multiple instances
+    * ENHANCED: Export capabilities (PNG, PDF, CSV, Excel)
+    * ENHANCED: Better error handling and logging
+    * OPTIMIZED: Performance improvements for long sessions
+
+  0.1 - Initial release (2024-08)
     * IPCC AR6 global mean sea-level projections integration
     * CODEC return period datasets for storm surge and tide extremes
     * OpenTopography DEM fetching and preprocessing tools
@@ -53,7 +76,7 @@ changelog=
 
 license=GNU GPL v2
 
-tags=python, processing, sea level rise, flooding, vulnerability, resilience, climate adaptation, urban planning
+tags=python, processing, sea level rise, flooding, vulnerability, resilience, climate adaptation, urban planning, visualization, ipcc, climate change, coastal, hazards, risk assessment
 category=Analysis
 icon=Icons/32.png
 

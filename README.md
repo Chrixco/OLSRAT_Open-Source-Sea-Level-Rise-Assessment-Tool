@@ -23,14 +23,17 @@ A professional QGIS plugin for mapping **sea-level rise (SLR) vulnerability** an
 - **Polygon-based flood exposure** analysis (parcel/building-level)
 - **Point-based flood mapping** with 2D/3D visualization
 - **Heatmap generation** for flood risk hotspots
+- **Interactive data visualization dashboard** with charts and statistics
 
 ### 📊 Vulnerability Assessment
 - **Social Vulnerability Index (SVI)** calculator
 - Integration with census and demographic data
 - Multi-indicator composite scoring
+- **Population impact analysis** with proportional distribution
 
 ### 🛠️ Data Preparation
 - **OpenTopography DEM fetching** (Copernicus 30m/90m)
+- **OSM data fetching** for buildings and streets
 - Vector ↔ Raster conversion tools
 - Automated CRS reprojection
 - Terrain analysis (slope, aspect, hillshade)
@@ -132,10 +135,11 @@ A professional QGIS plugin for mapping **sea-level rise (SLR) vulnerability** an
 - **Dependencies:** NumPy, Pandas, GDAL (included with QGIS)
 - **Optional:** Internet connection for DEM fetching
 
-### Processing Algorithms (14 total)
+### Processing Algorithms (16 total)
 
-#### Data Preparation (4)
+#### Data Preparation (5)
 - Fetch DEM (OpenTopography)
+- Fetch OSM Buildings & Streets
 - Reproject Vector
 - Vector to Raster
 - Raster to Vector
@@ -155,6 +159,9 @@ A professional QGIS plugin for mapping **sea-level rise (SLR) vulnerability** an
 - Slope Analysis
 - Aspect Analysis
 - Hillshade
+
+#### Data Visualization (1)
+- Interactive Data Visualization Dashboard
 
 ---
 
@@ -236,14 +243,22 @@ This plugin is designed for:
 
 ## 🔮 Roadmap
 
-### v0.2 (Planned)
-- [ ] Automated report generation
+### v0.2 (Current - In Development)
+- [x] Interactive data visualization dashboard with charts
+- [x] OSM data fetching for buildings and streets
+- [x] Memory leak fixes and performance improvements
+- [x] Non-modal dialogs for better UX
+- [ ] Automated report generation (PDF/HTML)
+- [ ] Enhanced export capabilities
+
+### v0.3 (Planned)
 - [ ] Time series animation support
 - [ ] Multi-scenario comparison tools
 - [ ] Integration with more DEM sources
+- [ ] Batch processing improvements
 
 ### v1.0 (Future)
-- [ ] Web-based SaaS version
+- [ ] Web-based dashboard
 - [ ] Real-time data integration
 - [ ] Machine learning flood prediction
 - [ ] Mobile field data collection
