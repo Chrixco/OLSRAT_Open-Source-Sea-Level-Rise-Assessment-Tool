@@ -302,11 +302,20 @@ class AnalysisWorker(QThread):
         self.pop_field = pop_field
         self.proportional = proportional
         self.results = {}
+        self.abort = False  # Flag for aborting analysis
 
     def run(self):
         try:
+            # Check abort before starting
+            if self.abort:
+                return
+
             self.status.emit("Analyzing data...")
             self.progress.emit(20)
+
+            if self.abort:
+                self.status.emit("Analysis aborted")
+                return
 
             if self.analysis_type == "area_comparison":
                 self.results = self.calculate_area_comparison()
@@ -315,9 +324,14 @@ class AnalysisWorker(QThread):
             elif self.analysis_type == "distribution":
                 self.results = self.calculate_distribution()
 
-            self.finished.emit(self.results)
+            if not self.abort:
+                self.finished.emit(self.results)
+            else:
+                self.status.emit("Analysis aborted")
+
         except Exception as e:
-            self.error.emit(str(e))
+            if not self.abort:
+                self.error.emit(str(e))
 
     def calculate_area_comparison(self):
         """Compare total area vs inundated area from single layer"""
@@ -639,11 +653,11 @@ class SlrVmVisualizationDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("OSLRAT - Data Visualization Dashboard")
         self.resize(1400, 850)
-        self.setWindowModality(Qt.NonModal)  # Allow interaction with other windows
-        self.parent_gui = parent  # Store reference to parent GUI
+        # Note: Don't set WindowModality here - let show() handle it (non-modal by default)
 
         self.current_results = None
         self.worker = None
+        self._abort_analysis = False
 
         self.init_ui()
 
@@ -2007,12 +2021,21 @@ class SlrVmVisualizationDialog(QDialog):
         self.status_label.setText("Starting analysis...")
         self.generate_btn.setEnabled(False)
 
-        # Start worker
+        # Stop any existing worker
+        self.stop_worker()
+
+        # Create and start new worker
         self.worker = AnalysisWorker(analysis_type, inundated_layer, comparison_layer, inund_field, pop_field, proportional)
-        self.worker.progress.connect(self.progress_bar.setValue)
-        self.worker.status.connect(self.status_label.setText)
-        self.worker.finished.connect(self.on_analysis_finished)
-        self.worker.error.connect(self.on_analysis_error)
+
+        # Connect signals with Qt.QueuedConnection for thread safety
+        self.worker.progress.connect(self.progress_bar.setValue, Qt.QueuedConnection)
+        self.worker.status.connect(self.status_label.setText, Qt.QueuedConnection)
+        self.worker.finished.connect(self.on_analysis_finished, Qt.QueuedConnection)
+        self.worker.error.connect(self.on_analysis_error, Qt.QueuedConnection)
+
+        # Auto-cleanup when finished
+        self.worker.finished.connect(self.cleanup_worker, Qt.QueuedConnection)
+
         self.worker.start()
 
     def on_analysis_finished(self, results):
@@ -2387,3 +2410,83 @@ class SlrVmVisualizationDialog(QDialog):
                 QMessageBox.information(self, "Success", f"Data exported to:\n{file_path}")
             except Exception as e:
                 QMessageBox.critical(self, "Export Error", f"Failed to export:\n{str(e)}")
+
+    def stop_worker(self):
+        """Safely stop worker thread"""
+        if self.worker is not None:
+            if self.worker.isRunning():
+                QgsMessageLog.logMessage(
+                    "Stopping analysis worker...",
+                    "OSLRAT",
+                    Qgis.Info
+                )
+
+                # Set abort flag (worker should check this)
+                self._abort_analysis = True
+                self.worker.abort = True
+
+                # Wait for graceful shutdown
+                if not self.worker.wait(3000):  # 3 second timeout
+                    QgsMessageLog.logMessage(
+                        "Worker did not stop gracefully, terminating...",
+                        "OSLRAT",
+                        Qgis.Warning
+                    )
+                    self.worker.terminate()
+                    self.worker.wait()
+
+            self.cleanup_worker()
+
+    def cleanup_worker(self):
+        """Cleanup worker object and connections"""
+        if self.worker is not None:
+            try:
+                # Disconnect all signals
+                self.worker.progress.disconnect()
+                self.worker.status.disconnect()
+                self.worker.finished.disconnect()
+                self.worker.error.disconnect()
+            except (TypeError, RuntimeError):
+                pass  # Already disconnected or deleted
+
+            # Schedule for deletion
+            self.worker.deleteLater()
+            self.worker = None
+
+            self._abort_analysis = False
+
+    def cleanup_matplotlib(self):
+        """Cleanup matplotlib resources"""
+        try:
+            if hasattr(self, 'chart_widget') and self.chart_widget is not None:
+                if hasattr(self.chart_widget, 'figure') and self.chart_widget.figure is not None:
+                    self.chart_widget.figure.clear()
+                    if MATPLOTLIB_AVAILABLE:
+                        plt.close(self.chart_widget.figure)
+                    self.chart_widget.figure = None
+        except Exception as e:
+            QgsMessageLog.logMessage(
+                f"Error cleaning up matplotlib: {e}",
+                "OSLRAT",
+                Qgis.Warning
+            )
+
+    def closeEvent(self, event):
+        """Cleanup all resources before closing"""
+        QgsMessageLog.logMessage(
+            "Closing visualization dialog, cleaning up resources...",
+            "OSLRAT",
+            Qgis.Info
+        )
+
+        # Stop worker thread
+        self.stop_worker()
+
+        # Cleanup matplotlib
+        self.cleanup_matplotlib()
+
+        # Clear results
+        self.current_results = None
+
+        # Accept close event
+        super().closeEvent(event)

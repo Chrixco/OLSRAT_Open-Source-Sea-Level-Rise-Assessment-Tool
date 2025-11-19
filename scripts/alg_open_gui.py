@@ -61,13 +61,16 @@ class AlgOpenGui(QgsProcessingAlgorithm):
     def processAlgorithm(self, parameters, context: QgsProcessingContext, feedback):
         """Open the main GUI"""
         try:
-            # Import the main GUI class
-            from ..slr_vm_new_gui import SlrVulnerabilityMapperDialog
+            # Import the plugin instance to reuse existing dialog (singleton pattern)
+            from qgis.utils import plugins
+            plugin = plugins.get('slr_vulnerability_mapper')
 
-            # Create and show the GUI (non-modal)
-            dialog = SlrVulnerabilityMapperDialog()
-            dialog.setWindowModality(0)  # Non-modal
-            dialog.show()
+            if plugin is None:
+                feedback.reportError("Plugin not found. This should not happen.", fatalError=True)
+                return {}
+
+            # Use plugin's method to open GUI (ensures singleton pattern and proper cleanup)
+            plugin.open_new_gui()
 
             feedback.pushInfo("✓ Main GUI opened successfully!")
             feedback.pushInfo("The toolkit window should now be visible.")

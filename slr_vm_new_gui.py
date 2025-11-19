@@ -2,18 +2,25 @@
 """
 Modern GUI for OSLRAT
 with category buttons and styled drop-down menus
+Cross-platform compatible (macOS, Windows, Linux)
 """
 
 from functools import partial
+import platform
 from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QMenu,
     QLabel, QWidget, QFrame
 )
 from qgis.PyQt.QtGui import QIcon, QPixmap, QColor
-from qgis.PyQt.QtCore import Qt, QSize
+from qgis.PyQt.QtCore import Qt, QSize, QPoint, QEvent
 import processing
 from qgis.core import QgsMessageLog, Qgis
 from .slr_vm_viz_redesigned import SlrVmVisualizationDialog
+
+# Detect platform for platform-specific adjustments
+IS_MACOS = platform.system() == 'Darwin'
+IS_WINDOWS = platform.system() == 'Windows'
+IS_LINUX = platform.system() == 'Linux'
 
 
 # --- Central colour theme ---
@@ -39,6 +46,7 @@ class SlrVmNewGui(QDialog):
     def __init__(self, provider, parent=None):
         super().__init__(parent)
         self.provider = provider
+        self._viz_dialog = None  # Track visualization dialog
         self.setWindowTitle("OSLRAT - Open-Source Sea-Level Rise Assessment Tool")
         self.resize(1300, 750)
 
@@ -144,7 +152,8 @@ class SlrVmNewGui(QDialog):
                 "name": "Data Preparation",
                 "icon_path": ":/slr_vm/Icons/Data_Prep_Logo/Assets.xcassets/AppIcon.appiconset/_/32.png",
                 "algorithms": [
-                    {"id": f"{self.provider.id()}:fetch_dem_prep", "name": "Fetch DEM"},
+                    {"id": f"{self.provider.id()}:fetch_dem_prep", "name": "Fetch DEM (OpenTopography)"},
+                    {"id": f"{self.provider.id()}:fetch_osm_data", "name": "🏘️ Fetch OSM Buildings & Streets"},
                     {"id": f"{self.provider.id()}:reproject_vector", "name": "Reproject Vector"},
                     {"id": f"{self.provider.id()}:vector_to_raster", "name": "Vector to Raster"},
                     {"id": f"{self.provider.id()}:raster_to_vector", "name": "Raster to Vector"},
@@ -351,8 +360,14 @@ class SlrVmNewGui(QDialog):
             }}
         """)
 
-        # Menu with enhanced styling
-        menu = QMenu()
+        # Menu with enhanced styling - parent to self (dialog) for proper z-order
+        # Important: Parent to dialog (not button) to ensure menu stays on top
+        menu = QMenu(self)
+
+        # Set window flags to ensure menu appears on top
+        menu.setWindowFlags(menu.windowFlags() | Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
+        menu.setAttribute(Qt.WA_TranslucentBackground, False)
+
         menu.setStyleSheet(f"""
             QMenu {{
                 background-color: #ffffff;
@@ -396,11 +411,42 @@ class SlrVmNewGui(QDialog):
             action.triggered.connect(partial(self._run_algorithm_with_debug, alg["id"], alg["name"]))
 
         def show_menu():
-            QgsMessageLog.logMessage(f"Showing menu for {category['name']}", "OSLRAT", Qgis.Info)
-            menu.setMinimumWidth(btn.width())
-            # Use built-in Qt positioning for better cross-platform support
-            menu.exec_(btn.mapToGlobal(btn.rect().bottomLeft()))
-            QgsMessageLog.logMessage(f"Menu closed for {category['name']}", "OSLRAT", Qgis.Info)
+            QgsMessageLog.logMessage(
+                f"Button clicked for {category['name']} on {platform.system()}, showing menu with {len(category['algorithms'])} items",
+                "OSLRAT", Qgis.Info
+            )
+            try:
+                menu.setMinimumWidth(btn.width())
+
+                # Platform-specific menu positioning
+                # macOS: bottomLeft works well
+                # Windows: May need slight Y offset to avoid overlap
+                # Linux: Similar to Windows
+                pos = btn.mapToGlobal(btn.rect().bottomLeft())
+
+                # Add small Y offset on Windows to prevent menu from overlapping button
+                if IS_WINDOWS:
+                    pos = QPoint(pos.x(), pos.y() + 2)
+
+                QgsMessageLog.logMessage(f"Menu position: {pos.x()}, {pos.y()} (Platform: {platform.system()})", "OSLRAT", Qgis.Info)
+
+                # Ensure the menu is activated and raised to front
+                menu.activateWindow()
+                menu.raise_()
+
+                # Show the menu at the calculated position
+                # exec_() is synchronous and blocks until menu is closed
+                selected_action = menu.exec_(pos)
+
+                if selected_action:
+                    QgsMessageLog.logMessage(f"Menu item selected: {selected_action.text()}", "OSLRAT", Qgis.Info)
+                else:
+                    QgsMessageLog.logMessage(f"Menu closed without selection", "OSLRAT", Qgis.Info)
+
+            except Exception as e:
+                QgsMessageLog.logMessage(f"Error showing menu for {category['name']}: {str(e)}", "OSLRAT", Qgis.Critical)
+                import traceback
+                QgsMessageLog.logMessage(f"Traceback: {traceback.format_exc()}", "OSLRAT", Qgis.Critical)
 
         btn.clicked.connect(show_menu)
         layout.addWidget(btn)
@@ -410,8 +456,27 @@ class SlrVmNewGui(QDialog):
         """Open the interactive visualization dashboard"""
         QgsMessageLog.logMessage("Opening Interactive Data Visualization Dashboard", "OSLRAT", Qgis.Info)
         try:
-            viz_dialog = SlrVmVisualizationDialog(self)
-            viz_dialog.exec_()
+            # Check if already open
+            if self._viz_dialog is not None:
+                self._viz_dialog.show()
+                self._viz_dialog.raise_()
+                self._viz_dialog.activateWindow()
+                QgsMessageLog.logMessage("Reusing existing visualization dialog", "OSLRAT", Qgis.Info)
+                return
+
+            # Create new dialog
+            self._viz_dialog = SlrVmVisualizationDialog(self)
+
+            # Cleanup reference when destroyed
+            self._viz_dialog.destroyed.connect(
+                lambda: setattr(self, '_viz_dialog', None)
+            )
+
+            # Show non-modally (allows interaction with main GUI and map)
+            self._viz_dialog.show()
+
+            QgsMessageLog.logMessage("Created new visualization dialog", "OSLRAT", Qgis.Info)
+
         except Exception as e:
             QgsMessageLog.logMessage(
                 f"Error opening visualization dashboard: {str(e)}",
@@ -449,4 +514,19 @@ class SlrVmNewGui(QDialog):
                 "Error",
                 f"Failed to open algorithm '{alg_name}':\n\n{str(e)}"
             )
+
+    def closeEvent(self, event):
+        """Cleanup resources when dialog closes"""
+        QgsMessageLog.logMessage("Closing main GUI dialog", "OSLRAT", Qgis.Info)
+
+        # Close child visualization dialog if open
+        if self._viz_dialog is not None:
+            try:
+                self._viz_dialog.close()
+            except:
+                pass
+            self._viz_dialog = None
+
+        # Accept the close event
+        super().closeEvent(event)
 
