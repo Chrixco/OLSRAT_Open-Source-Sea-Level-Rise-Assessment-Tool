@@ -2,14 +2,15 @@ from qgis.core import (QgsProcessingAlgorithm, QgsProcessingParameterFeatureSour
     QgsProcessingParameterField, QgsProcessingParameterString, QgsProcessingParameterNumber,
     QgsProcessingParameterVectorDestination, QgsProcessingException, QgsField, QgsFeature, QgsProcessing)
 from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtGui import QIcon
 
 class AlgSVI(QgsProcessingAlgorithm):
     INPUT="INPUT"; NEG_FIELDS="NEG_FIELDS"; POS_FIELDS="POS_FIELDS"
     W_NEG="W_NEG"; W_POS="W_POS"; PREFIX="PREFIX"; OUTPUT="OUTPUT"
     def name(self): return "svi_index"
     def displayName(self): return "Social Vulnerability Index (SVI)"
-    def group(self): return "Socio-Economic Analysis";  
-    def groupId(self): return "socio"
+    def group(self): return "Social Analysis"
+    def groupId(self): return "social_analysis"
 
     def initAlgorithm(self, config=None):
         self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT,"Input polygons",
@@ -67,4 +68,10 @@ class AlgSVI(QgsProcessingAlgorithm):
         return {self.OUTPUT: dest}
 
     def createInstance(self): return AlgSVI()
+
+    def icon(self):
+        import os
+        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                  "Icons", "Social_Analysis_Logo", "Assets.xcassets",
+                                  "AppIcon.appiconset", "_", "32.png"))
     def shortHelpString(self): return "SVI = weighted mean of min–max normalised indicators (neg worse, pos better)."

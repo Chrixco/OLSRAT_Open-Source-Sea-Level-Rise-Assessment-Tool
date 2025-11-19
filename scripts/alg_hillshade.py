@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from qgis.core import (QgsProcessing, QgsProcessingAlgorithm, QgsProcessingParameterRasterLayer, QgsProcessingParameterNumber, QgsProcessingParameterRasterDestination)
 from qgis.PyQt.QtCore import QCoreApplication
+from qgis.PyQt.QtGui import QIcon
 import processing
 
 class AlgHillshade(QgsProcessingAlgorithm):
@@ -30,4 +31,10 @@ class AlgHillshade(QgsProcessingAlgorithm):
     def groupId(self): return "terrain_analysis"
     def shortHelpString(self): return self.tr("Compute hillshade raster from DEM.")
     def createInstance(self): return AlgHillshade()
+
+    def icon(self):
+        import os
+        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                  "Icons", "Terrain_Analysis_Logo", "Assets.xcassets",
+                                  "AppIcon.appiconset", "_", "32.png"))
     def tr(self, msg): return QCoreApplication.translate("AlgHillshade", msg)

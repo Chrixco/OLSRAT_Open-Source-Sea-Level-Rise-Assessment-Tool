@@ -8,6 +8,7 @@ Columns: process, confidence, scenario (ssp119/126/245/370/585),
 """
 
 from qgis.PyQt.QtCore import QCoreApplication, QVariant
+from qgis.PyQt.QtGui import QIcon
 from qgis.core import (
     QgsProcessing, QgsProcessingAlgorithm, QgsProcessingException,
     QgsProcessingParameterRasterLayer, QgsProcessingParameterVectorLayer,
@@ -18,14 +19,8 @@ from qgis.core import (
     QgsField, QgsUnitTypes, QgsRasterLayer, QgsVectorLayer, QgsFeature, QgsFields, QgsWkbTypes
 )
 from qgis import processing
-from qgis.core import edit as qgis_edit
-from contextlib import contextmanager
 import csv, os
 
-@contextmanager
-def edit(layer):
-    with qgis_edit(layer):
-        yield
 
 class DemFloodScenarioAlgorithm(QgsProcessingAlgorithm):
     # parameter keys
@@ -42,12 +37,17 @@ class DemFloodScenarioAlgorithm(QgsProcessingAlgorithm):
     def name(self): return "dem_flood_scenario"
     def displayName(self): return self.tr("DEM → Flooded extent + AOI stats (AR6 CSV)")
     def group(self): return self.tr("Flood Exposure")
-    def groupId(self): return "slr_flood_tools"
+    def groupId(self): return "flood_exposure"
     def shortHelpString(self):
         return self.tr("Derives sea level from the bundled IPCC AR6 CSV (process=total) by scenario/year/percentile, "
                        "applies an optional vertical offset (m), thresholds the DEM to a flooded mask, and computes "
                        "flooded area statistics per AOI polygon.")
     def createInstance(self): return DemFloodScenarioAlgorithm()
+
+    def icon(self):
+        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                  "Icons", "SLR_Alg_Logo", "Assets.xcassets",
+                                  "AppIcon.appiconset", "_", "32.png"))
 
     # ---------- helpers ----------
     @staticmethod
@@ -57,13 +57,18 @@ class DemFloodScenarioAlgorithm(QgsProcessingAlgorithm):
         return os.path.join(plugin_root, "Data", "slr_ipcc_ar6_sea_level_projection_global_total.csv")
 
     def _read_years_from_csv(self, csv_path):
-        if not os.path.exists(csv_path):
+        """Safely read year columns from CSV, returning empty list on any error"""
+        try:
+            if not os.path.exists(csv_path):
+                return []
+            with open(csv_path, "r", newline="", encoding="utf-8-sig") as f:
+                rdr = csv.reader(f)
+                headers = next(rdr)
+                # first 4 are process, confidence, scenario, quantile
+                return [h for h in headers if h.isdigit()]
+        except Exception:
+            # Return empty list if any error during CSV read (file corrupt, permissions, etc)
             return []
-        with open(csv_path, "r", newline="", encoding="utf-8-sig") as f:
-            rdr = csv.reader(f)
-            headers = next(rdr)
-            # first 4 are process, confidence, scenario, quantile
-            return [h for h in headers if h.isdigit()]
 
     def _level_from_csv(self, csv_path, ssp_ui, year_str, pctl_ui):
         if not os.path.exists(csv_path):

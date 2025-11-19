@@ -4,6 +4,7 @@ Raster to Vector (Data Preparation)
 Polygonizes a raster band to polygons, writing cell values into an attribute.
 """
 from qgis.PyQt.QtCore import QCoreApplication
+from qgis.PyQt.QtGui import QIcon
 from qgis.core import (
     QgsProcessing, QgsProcessingAlgorithm,
     QgsProcessingParameterRasterLayer, QgsProcessingParameterNumber,
@@ -30,6 +31,12 @@ class AlgRasterToVector(QgsProcessingAlgorithm):
         )
     def tr(self, m): return QCoreApplication.translate("AlgRasterToVector", m)
     def createInstance(self): return AlgRasterToVector()
+
+    def icon(self):
+        import os
+        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                  "Icons", "Data_Prep_Logo", "Assets.xcassets",
+                                  "AppIcon.appiconset", "_", "32.png"))
 
     def initAlgorithm(self, config=None):
         self.addParameter(QgsProcessingParameterRasterLayer(

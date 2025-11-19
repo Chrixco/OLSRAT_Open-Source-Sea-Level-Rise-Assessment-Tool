@@ -1,13 +1,13 @@
 [general]
-name=SLR Vulnerability Mapper
+name=OSLRAT
 qgisMinimumVersion=3.30
-description=Assess and visualize sea-level-rise & flood exposure
+description=Open-Source Sea-Level Rise Assessment Tool - Assess and visualize sea-level-rise & flood exposure
 version=0.1
 author=Christian Xavier Corral Burau
 email=christianxcorral@gmail.com
 
 about=
-  <h2>🌍 SLR Vulnerability Mapper</h2>
+  <h2>🌍 OSLRAT - Open-Source Sea-Level Rise Assessment Tool</h2>
   <p>
   A QGIS plugin to map <b>flood exposure</b> and <b>urban vulnerability</b> under
   sea-level rise and extreme water level scenarios.
@@ -37,13 +37,25 @@ about=
   enabling communities to better prepare for coastal futures.
   </p>
 
-tracker=https://github.com/christianxcorral/slr_vulnerability_mapper/issues
-repository=https://github.com/christianxcorral/slr_vulnerability_mapper
-homepage=https://github.com/christianxcorral/slr_vulnerability_mapper
+tracker=https://github.com/Chrixco/OLSRAT_Open-Source-Sea-Level-Rise-Assessment-Tool/issues
+repository=https://github.com/Chrixco/OLSRAT_Open-Source-Sea-Level-Rise-Assessment-Tool
+homepage=https://github.com/Chrixco/OLSRAT_Open-Source-Sea-Level-Rise-Assessment-Tool
+
+changelog=
+  0.1 - Initial release
+    * IPCC AR6 global mean sea-level projections integration
+    * CODEC return period datasets for storm surge and tide extremes
+    * OpenTopography DEM fetching and preprocessing tools
+    * Processing algorithms for flood exposure mapping
+    * Social Vulnerability Index (SVI) calculator
+    * Terrain analysis tools (slope, aspect, hillshade)
+    * Modern category-based GUI toolkit
+
+license=GNU GPL v2
 
 tags=python, processing, sea level rise, flooding, vulnerability, resilience, climate adaptation, urban planning
 category=Analysis
-icon=Icons/32.svg
+icon=Icons/32.png
 
 hasProcessingProvider=yes
 experimental=no

@@ -17,6 +17,7 @@ combined with -te <extent>, which avoids 0×0 datasets in geographic CRSs.
 import math
 import processing
 from qgis.PyQt.QtCore import QCoreApplication
+from qgis.PyQt.QtGui import QIcon
 from qgis.core import (
     QgsProcessing, QgsProcessingAlgorithm,
     QgsProcessingParameterVectorLayer, QgsProcessingParameterField,
@@ -58,6 +59,12 @@ class AlgVectorToRaster(QgsProcessingAlgorithm):
         )
     def tr(self, m): return QCoreApplication.translate("AlgVectorToRaster", m)
     def createInstance(self): return AlgVectorToRaster()
+
+    def icon(self):
+        import os
+        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                  "Icons", "Data_Prep_Logo", "Assets.xcassets",
+                                  "AppIcon.appiconset", "_", "32.png"))
 
     # ---- UI ----
     def initAlgorithm(self, config=None):

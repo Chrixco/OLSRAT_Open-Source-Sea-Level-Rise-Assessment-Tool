@@ -10,6 +10,7 @@
     <!-- Category icons -->
     <file>Icons/Data_Prep_Logo/Assets.xcassets/AppIcon.appiconset/_/32.png</file>
     <file>Icons/SLR_Alg_Logo/Assets.xcassets/AppIcon.appiconset/_/32.png</file>
+    <file>Icons/SLR_Alg_Logo/Assets.xcassets/AppIcon.appiconset/_/64.png</file>
     <file>Icons/Social_Analysis_Logo/Assets.xcassets/AppIcon.appiconset/_/32.png</file>
     <file>Icons/Terrain_Analysis_Logo/Assets.xcassets/AppIcon.appiconset/_/32.png</file>
   </qresource>

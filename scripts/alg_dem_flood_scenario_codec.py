@@ -15,6 +15,7 @@ import os, csv, re, math
 import numpy as np
 
 from qgis.PyQt.QtCore import QCoreApplication, QVariant
+from qgis.PyQt.QtGui import QIcon
 from qgis.core import (
     QgsProcessing, QgsProcessingAlgorithm, QgsProcessingException,
     QgsProcessingParameterRasterLayer, QgsProcessingParameterVectorLayer,
@@ -88,10 +89,10 @@ class DemFloodScenarioAlgorithmWithReturnPeriod(QgsProcessingAlgorithm):
     PCTL_OPTIONS = ["p50 (median)","p17 (likely lower)","p83 (likely upper)","p05 (low)","p95 (high)"]
     _PCTL_MAP = {"p50 (median)":50,"p17 (likely lower)":17,"p83 (likely upper)":83,"p05 (low)":5,"p95 (high)":95}
 
-    # CSV-informed at init:
-    RP_OPTIONS = None   # e.g. ["SLR only","Annual (1-yr)","10-yr","50-yr","100-yr","1000-yr"]
-    RP_KEYS = None      # e.g. [None, 1, 10, 50, 100, 1000]
-    CODEC_STATION_OPTIONS = None  # ["Auto (nearest to AOI)", "STATION_A", ...]
+    # CSV-informed at init (safe defaults if CSV unavailable):
+    RP_OPTIONS = ["SLR only"]   # e.g. ["SLR only","Annual (1-yr)","10-yr","50-yr","100-yr","1000-yr"]
+    RP_KEYS = [None]            # e.g. [None, 1, 10, 50, 100, 1000]
+    CODEC_STATION_OPTIONS = ["Auto (nearest to AOI)"]  # ["Auto (nearest to AOI)", "STATION_A", ...]
 
     # Primary RP choices (fixed, additive to SLR):
     PRIMARY_RP_OPTIONS = ["SLR only", "SLR + 10-yr", "SLR + 50-yr", "SLR + 100-yr", "SLR + 1000-yr"]
@@ -102,7 +103,7 @@ class DemFloodScenarioAlgorithmWithReturnPeriod(QgsProcessingAlgorithm):
     def name(self): return "dem_flood_scenario_codec"
     def displayName(self): return self.tr("DEM → Flooded extent + AOI stats (AR6 + CODEC RPs)")
     def group(self): return self.tr("Flood Exposure")
-    def groupId(self): return "slr_flood_tools"
+    def groupId(self): return "flood_exposure"
     def shortHelpString(self):
         return self.tr(
             "Thresholds a DEM by sea level from IPCC AR6 (process=total) and optional CODEC return levels. "
@@ -110,6 +111,12 @@ class DemFloodScenarioAlgorithmWithReturnPeriod(QgsProcessingAlgorithm):
             "Returns raster + AOI stats for the chosen Primary RP; other selected RPs are also generated as temporary rasters."
         )
     def createInstance(self): return DemFloodScenarioAlgorithmWithReturnPeriod()
+
+    def icon(self):
+        import os
+        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                  "Icons", "SLR_Alg_Logo", "Assets.xcassets",
+                                  "AppIcon.appiconset", "_", "32.png"))
 
     # ------------- helpers -------------
     @staticmethod
@@ -128,10 +135,17 @@ class DemFloodScenarioAlgorithmWithReturnPeriod(QgsProcessingAlgorithm):
                             "Data", "codec_global_station_metadata_present_RLs.csv")
 
     def _read_years_from_csv(self, csv_path):
-        if not os.path.exists(csv_path): return []
-        with open(csv_path, "r", newline="", encoding="utf-8-sig") as f:
-            rdr = csv.reader(f); headers = next(rdr)
-            return [h for h in headers if h.isdigit()]
+        """Safely read year columns from CSV, returning empty list on any error"""
+        try:
+            if not os.path.exists(csv_path):
+                return []
+            with open(csv_path, "r", newline="", encoding="utf-8-sig") as f:
+                rdr = csv.reader(f)
+                headers = next(rdr)
+                return [h for h in headers if h.isdigit()]
+        except Exception:
+            # Return empty list if any error during CSV read (file corrupt, permissions, etc)
+            return []
 
     def _level_from_csv(self, csv_path, ssp_ui, year_str, pctl_ui):
         if not os.path.exists(csv_path):
@@ -165,28 +179,32 @@ class DemFloodScenarioAlgorithmWithReturnPeriod(QgsProcessingAlgorithm):
 
     @staticmethod
     def _detect_codec_csv(csv_path):
-        """Return (available_rps [ints], station_ids [list], keys dict)."""
-        if not (csv_path and os.path.exists(csv_path)):
-            return [], ["Auto (nearest to AOI)"], {'lon':None,'lat':None,'id':None,'rl_cols':{}}
-        with open(csv_path, "r", newline="", encoding="utf-8-sig") as f:
-            rdr = csv.DictReader(f)
-            if not rdr.fieldnames:
+        """Return (available_rps [ints], station_ids [list], keys dict). Safe - returns defaults on error."""
+        try:
+            if not (csv_path and os.path.exists(csv_path)):
                 return [], ["Auto (nearest to AOI)"], {'lon':None,'lat':None,'id':None,'rl_cols':{}}
-            lon_key = DemFloodScenarioAlgorithmWithReturnPeriod._pick(rdr.fieldnames, {"lon","longitude","x","lon_dd"})
-            lat_key = DemFloodScenarioAlgorithmWithReturnPeriod._pick(rdr.fieldnames, {"lat","latitude","y","lat_dd"})
-            id_key  = _find_id_key(rdr.fieldnames)
-            rl_cols = _find_rl_cols(rdr.fieldnames)
+            with open(csv_path, "r", newline="", encoding="utf-8-sig") as f:
+                rdr = csv.DictReader(f)
+                if not rdr.fieldnames:
+                    return [], ["Auto (nearest to AOI)"], {'lon':None,'lat':None,'id':None,'rl_cols':{}}
+                lon_key = DemFloodScenarioAlgorithmWithReturnPeriod._pick(rdr.fieldnames, {"lon","longitude","x","lon_dd"})
+                lat_key = DemFloodScenarioAlgorithmWithReturnPeriod._pick(rdr.fieldnames, {"lat","latitude","y","lat_dd"})
+                id_key  = _find_id_key(rdr.fieldnames)
+                rl_cols = _find_rl_cols(rdr.fieldnames)
 
-            stations = ["Auto (nearest to AOI)"]
-            if id_key:
-                seen = set()
-                for i, row in enumerate(rdr):
-                    sid = (row.get(id_key) or "").strip()
-                    if sid and sid not in seen:
-                        stations.append(sid); seen.add(sid)
-                    if len(stations) > 3000: break
+                stations = ["Auto (nearest to AOI)"]
+                if id_key:
+                    seen = set()
+                    for i, row in enumerate(rdr):
+                        sid = (row.get(id_key) or "").strip()
+                        if sid and sid not in seen:
+                            stations.append(sid); seen.add(sid)
+                        if len(stations) > 3000: break
 
-        return sorted(list(rl_cols.keys())), stations, {'lon':lon_key,'lat':lat_key,'id':id_key,'rl_cols':rl_cols}
+            return sorted(list(rl_cols.keys())), stations, {'lon':lon_key,'lat':lat_key,'id':id_key,'rl_cols':rl_cols}
+        except Exception:
+            # Return safe defaults if any error during CSV read
+            return [], ["Auto (nearest to AOI)"], {'lon':None,'lat':None,'id':None,'rl_cols':{}}
 
     def _aoi_center_lonlat(self, layer, context: QgsProcessingContext):
         if not (layer and layer.isValid()): return None
@@ -263,21 +281,35 @@ class DemFloodScenarioAlgorithmWithReturnPeriod(QgsProcessingAlgorithm):
 
     # ------------- parameters -------------
     def initAlgorithm(self, config=None):
-        # AR6 defaults
-        ar6_default = self._default_ar6_csv_path()
-        years = self._read_years_from_csv(ar6_default) or [str(y) for y in range(2020, 2151, 10)]
+        # AR6 defaults (safe fallback to default years if CSV unavailable)
+        try:
+            ar6_default = self._default_ar6_csv_path()
+            years = self._read_years_from_csv(ar6_default) or [str(y) for y in range(2020, 2151, 10)]
+        except Exception:
+            years = [str(y) for y in range(2020, 2151, 10)]
         self._year_options = years
 
         # CODEC-informed menus from default CSV (built once at dialog creation)
-        codec_default = self._default_codec_csv_path()
-        available_rps, station_opts, _ = self._detect_codec_csv(codec_default)
+        # Safe fallback if CSV detection fails
+        try:
+            codec_default = self._default_codec_csv_path()
+            available_rps, station_opts, _ = self._detect_codec_csv(codec_default)
+        except Exception:
+            available_rps, station_opts = [], ["Auto (nearest to AOI)"]
 
         # Multi-select RP menu
-        rp_labels = ["SLR only"]; rp_keys = [None]
-        if 1 in available_rps: rp_labels.append("Annual (1-yr)"); rp_keys.append(1)
-        for rp in (10, 50, 100, 1000):
-            if rp in available_rps:
-                rp_labels.append(f"{rp}-yr"); rp_keys.append(rp)
+        rp_labels = ["SLR only"]
+        rp_keys = [None]
+        try:
+            if 1 in available_rps:
+                rp_labels.append("Annual (1-yr)")
+                rp_keys.append(1)
+            for rp in (10, 50, 100, 1000):
+                if rp in available_rps:
+                    rp_labels.append(f"{rp}-yr")
+                    rp_keys.append(rp)
+        except Exception:
+            pass  # Keep default ["SLR only"]
         self.RP_OPTIONS, self.RP_KEYS = rp_labels, rp_keys
         self.CODEC_STATION_OPTIONS = station_opts or ["Auto (nearest to AOI)"]
 
@@ -337,9 +369,14 @@ class DemFloodScenarioAlgorithmWithReturnPeriod(QgsProcessingAlgorithm):
         self.addParameter(p_manual)
 
         # Return periods (extra rasters): multi-select from CSV
-        default_rp_idx = [0]
-        if "Annual (1-yr)" in self.RP_OPTIONS: default_rp_idx.append(self.RP_OPTIONS.index("Annual (1-yr)"))
-        if "100-yr" in self.RP_OPTIONS:        default_rp_idx.append(self.RP_OPTIONS.index("100-yr"))
+        default_rp_idx = [0]  # Always include first option (SLR only)
+        try:
+            if "Annual (1-yr)" in self.RP_OPTIONS:
+                default_rp_idx.append(self.RP_OPTIONS.index("Annual (1-yr)"))
+            if "100-yr" in self.RP_OPTIONS:
+                default_rp_idx.append(self.RP_OPTIONS.index("100-yr"))
+        except (ValueError, IndexError):
+            pass  # Safe fallback to [0] if options not found
         self.addParameter(QgsProcessingParameterEnum(
             self.P_RPS, self.tr("Return periods to include (extra rasters)"),
             options=self.RP_OPTIONS, allowMultiple=True, defaultValue=default_rp_idx

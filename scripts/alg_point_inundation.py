@@ -31,6 +31,7 @@ from qgis.core import (
     QgsRasterBandStats
 )
 from qgis.PyQt.QtCore import QVariant, QCoreApplication
+from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtGui import QColor
 from qgis.core import QgsProject
 
@@ -278,8 +279,14 @@ class AlgPointFlooding(QgsProcessingAlgorithm):
             "treated as such, but projected DEMs in meters are recommended.</font></p>"
         )
 
-    def createInstance(self): 
+    def createInstance(self):
         return AlgPointFlooding()
+
+    def icon(self):
+        import os
+        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                  "Icons", "SLR_Alg_Logo", "Assets.xcassets",
+                                  "AppIcon.appiconset", "_", "32.png"))
 
     def tr(self, message): 
         return QCoreApplication.translate("AlgPointFlooding", message)
