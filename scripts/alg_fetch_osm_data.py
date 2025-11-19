@@ -153,13 +153,35 @@ class AlgFetchOSMData(QgsProcessingAlgorithm):
         else:
             extent_wgs84 = extent
 
-        # Get bounding box coordinates
-        south = extent_wgs84.yMinimum()
-        west = extent_wgs84.xMinimum()
-        north = extent_wgs84.yMaximum()
-        east = extent_wgs84.xMaximum()
+        # Get bounding box coordinates with validation
+        try:
+            south = float(extent_wgs84.yMinimum())
+            west = float(extent_wgs84.xMinimum())
+            north = float(extent_wgs84.yMaximum())
+            east = float(extent_wgs84.xMaximum())
+        except (ValueError, TypeError) as e:
+            raise QgsProcessingException(f"Invalid extent coordinates: {e}")
 
-        feedback.pushInfo(f"Fetching OSM data for bbox: {south},{west},{north},{east}")
+        # Validate coordinate ranges
+        if not (-90 <= south <= 90 and -90 <= north <= 90):
+            raise QgsProcessingException(f"Latitude out of range: south={south}, north={north}")
+        if not (-180 <= west <= 180 and -180 <= east <= 180):
+            raise QgsProcessingException(f"Longitude out of range: west={west}, east={east}")
+
+        # Validate extent is not inverted
+        if south >= north or west >= east:
+            raise QgsProcessingException("Invalid extent: coordinates appear inverted")
+
+        # Limit area size to prevent API abuse (max 0.5 degrees square)
+        area = (north - south) * (east - west)
+        MAX_AREA = 0.5
+        if area > MAX_AREA:
+            raise QgsProcessingException(
+                f"Area too large ({area:.4f}°²). Maximum: {MAX_AREA}°². "
+                "Please use a smaller extent to avoid overloading the Overpass API."
+            )
+
+        feedback.pushInfo(f"Fetching OSM data for bbox: {south:.6f},{west:.6f},{north:.6f},{east:.6f}")
         feedback.pushInfo(f"Data type: {self.DATA_TYPES[data_type_idx]}")
 
         # Build Overpass query based on data type
@@ -265,27 +287,53 @@ class AlgFetchOSMData(QgsProcessingAlgorithm):
 
         overpass_url = "https://overpass-api.de/api/interpreter"
 
+        # Add proper headers for identification and security
+        headers = {
+            'User-Agent': 'OSLRAT/0.2 (QGIS Plugin; +https://github.com/Chrixco/OLSRAT_Open-Source-Sea-Level-Rise-Assessment-Tool)',
+            'Accept': 'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+
         try:
             feedback.pushInfo("Sending request to Overpass API...")
             response = requests.post(
                 overpass_url,
                 data={"data": query},
+                headers=headers,
                 timeout=120
             )
             response.raise_for_status()
 
+            # Validate response content type
+            content_type = response.headers.get('content-type', '')
+            if 'application/json' not in content_type:
+                raise QgsProcessingException(
+                    f"Unexpected response type: {content_type}. Expected JSON."
+                )
+
             data = response.json()
-            feedback.pushInfo(f"Received {len(data.get('elements', []))} elements")
+
+            # Validate response structure
+            if not isinstance(data, dict):
+                raise QgsProcessingException("Invalid response structure from Overpass API")
+
+            elements = data.get('elements', [])
+            feedback.pushInfo(f"Received {len(elements)} elements")
             return data
 
         except requests.exceptions.Timeout:
             raise QgsProcessingException(
-                "Request timed out. Try a smaller area or simpler query."
+                "Request timed out after 120 seconds. Try a smaller area or simpler query."
+            )
+        except requests.exceptions.HTTPError as e:
+            status_code = e.response.status_code if e.response else 'unknown'
+            raise QgsProcessingException(
+                f"HTTP error {status_code} from Overpass API. The service may be overloaded or temporarily unavailable."
             )
         except requests.exceptions.RequestException as e:
-            raise QgsProcessingException(f"Error querying Overpass API: {str(e)}")
-        except json.JSONDecodeError:
-            raise QgsProcessingException("Invalid response from Overpass API")
+            raise QgsProcessingException(f"Network error querying Overpass API: {str(e)}")
+        except json.JSONDecodeError as e:
+            raise QgsProcessingException(f"Invalid JSON response from Overpass API: {str(e)}")
 
     def _create_vector_layer(self, osm_data, data_type_idx, include_attributes, target_crs, feedback):
         """Convert OSM JSON to QGIS vector layer"""
@@ -364,11 +412,23 @@ class AlgFetchOSMData(QgsProcessingAlgorithm):
                 if elem['type'] == 'way':
                     # Build geometry from nodes
                     node_refs = elem.get('nodes', [])
+                    if not node_refs:
+                        continue  # Skip ways with no node references
+
                     points = []
                     for node_id in node_refs:
                         if node_id in nodes:
                             node = nodes[node_id]
-                            points.append(QgsPointXY(node['lon'], node['lat']))
+                            # Validate node has required coordinates
+                            if 'lon' in node and 'lat' in node:
+                                try:
+                                    points.append(QgsPointXY(float(node['lon']), float(node['lat'])))
+                                except (ValueError, TypeError):
+                                    feedback.pushWarning(f"Invalid coordinates for node {node_id}")
+                                    continue
+                        else:
+                            # Node reference missing - common with incomplete OSM data
+                            pass
 
                     if len(points) >= 2:
                         if geom_type == "Polygon" and points[0] == points[-1]:
