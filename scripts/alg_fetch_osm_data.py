@@ -502,58 +502,61 @@ class AlgFetchOSMData(QgsProcessingAlgorithm):
 
             # Set attributes
             if include_attributes:
+                # Get list of available field names to check before setting
+                field_names = [field.name() for field in fields]
+
                 # Buildings
-                if 'building' in tags:
+                if 'building' in tags and 'building' in field_names:
                     feature.setAttribute("building", tags['building'])
-                if 'building:levels' in tags:
+                if 'building:levels' in tags and 'building_levels' in field_names:
                     try:
                         feature.setAttribute("building_levels", int(tags['building:levels']))
                     except:
                         pass
-                if 'height' in tags:
+                if 'height' in tags and 'height' in field_names:
                     try:
                         # Remove 'm' suffix if present
                         height_str = tags['height'].replace('m', '').strip()
                         feature.setAttribute("height", float(height_str))
                     except:
                         pass
-                if 'roof:levels' in tags:
+                if 'roof:levels' in tags and 'roof_levels' in field_names:
                     try:
                         feature.setAttribute("roof_levels", int(tags['roof:levels']))
                     except:
                         pass
-                if 'building:material' in tags:
+                if 'building:material' in tags and 'building_material' in field_names:
                     feature.setAttribute("building_material", tags['building:material'])
-                if 'amenity' in tags:
+                if 'amenity' in tags and 'amenity' in field_names:
                     feature.setAttribute("amenity", tags['amenity'])
-                if 'shop' in tags:
+                if 'shop' in tags and 'shop' in field_names:
                     feature.setAttribute("shop", tags['shop'])
 
                 # Streets
-                if 'highway' in tags:
+                if 'highway' in tags and 'highway' in field_names:
                     feature.setAttribute("highway", tags['highway'])
-                if 'surface' in tags:
+                if 'surface' in tags and 'surface' in field_names:
                     feature.setAttribute("surface", tags['surface'])
-                if 'bridge' in tags:
+                if 'bridge' in tags and 'bridge' in field_names:
                     feature.setAttribute("bridge", tags['bridge'])
-                if 'width' in tags:
+                if 'width' in tags and 'width' in field_names:
                     try:
                         width_str = tags['width'].replace('m', '').strip()
                         feature.setAttribute("width", float(width_str))
                     except:
                         pass
-                if 'lanes' in tags:
+                if 'lanes' in tags and 'lanes' in field_names:
                     try:
                         feature.setAttribute("lanes", int(tags['lanes']))
                     except:
                         pass
-                if 'maxspeed' in tags:
+                if 'maxspeed' in tags and 'maxspeed' in field_names:
                     feature.setAttribute("maxspeed", tags['maxspeed'])
 
                 # Infrastructure
-                if 'emergency' in tags:
+                if 'emergency' in tags and 'emergency' in field_names:
                     feature.setAttribute("emergency", tags['emergency'])
-                if 'healthcare' in tags:
+                if 'healthcare' in tags and 'healthcare' in field_names:
                     feature.setAttribute("healthcare", tags['healthcare'])
 
             if feature.hasGeometry():
