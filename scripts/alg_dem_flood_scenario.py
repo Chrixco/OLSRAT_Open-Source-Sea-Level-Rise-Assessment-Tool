@@ -359,5 +359,31 @@ class DemFloodScenarioAlgorithm(QgsProcessingAlgorithm):
                 if i % 1000 == 0 or i == total - 1:
                     feedback.setProgress(80 + int(20 * (i + 1) / total))
 
+        # Generate dynamic names for outputs
+        ssp_short = ssp_ui.replace("SSP", "").replace("-", "").replace(".", "")  # "245" from "SSP2-4.5"
+        pctl_short = pctl_ui.split()[0]  # "p50" from "p50 (median)"
+
+        # Dynamic name format: "Flood_SSP245_2050_p50"
+        dynamic_name_raster = f"Flood_{ssp_short}_{year_str}_{pctl_short}"
+        dynamic_name_aoi = f"AOI_Stats_{ssp_short}_{year_str}_{pctl_short}"
+
+        # Set layer names for better identification
+        try:
+            flooded_layer = QgsProcessingUtils.mapLayerFromString(flooded_path, context)
+            if flooded_layer:
+                flooded_layer.setName(dynamic_name_raster)
+                feedback.pushInfo(f"✓ Output raster named: {dynamic_name_raster}")
+        except:
+            pass  # Layer naming is optional, don't fail if it doesn't work
+
+        if aoi_out:
+            try:
+                aoi_layer = QgsProcessingUtils.mapLayerFromString(aoi_out, context)
+                if aoi_layer:
+                    aoi_layer.setName(dynamic_name_aoi)
+                    feedback.pushInfo(f"✓ Output AOI named: {dynamic_name_aoi}")
+            except:
+                pass
+
         return {self.O_RASTER: flooded_path, self.O_AOI: aoi_out}
 

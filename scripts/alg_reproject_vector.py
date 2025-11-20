@@ -152,4 +152,23 @@ class AlgReprojectVector(QgsProcessingAlgorithm):
         if skipped:
             feedback.reportError(f"✗ Features skipped (transform errors): {skipped}")
 
+        # Generate dynamic name for output
+        input_name = vlayer.name()
+        # Clean input name (remove file extensions and special chars)
+        clean_name = input_name.replace('.shp', '').replace('.gpkg', '').replace('.geojson', '')
+        # Get CRS code (e.g., "EPSG:3857" -> "3857")
+        crs_code = tgt_crs.authid().replace("EPSG:", "").replace(":", "_")
+
+        # Dynamic name format: "LayerName_CRS_reprojected"
+        dynamic_name = f"{clean_name}_{crs_code}_reprojected"
+
+        # Set layer name for better identification
+        try:
+            output_layer = QgsProcessingUtils.mapLayerFromString(dest_id, context)
+            if output_layer:
+                output_layer.setName(dynamic_name)
+                feedback.pushInfo(f"✓ Output layer named: {dynamic_name}")
+        except:
+            pass  # Layer naming is optional, don't fail if it doesn't work
+
         return {self.OUTPUT: dest_id}

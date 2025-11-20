@@ -746,4 +746,33 @@ class DemFloodScenarioAlgorithmWithReturnPeriod(QgsProcessingAlgorithm):
             f"{scenarios_block}\n"
         )
 
+        # Generate dynamic names for outputs
+        ssp_short = ssp_ui.replace("SSP", "").replace("-", "").replace(".", "")  # "245" from "SSP2-4.5"
+        pctl_short = pctl_ui.split()[0]  # "p50" from "p50 (median)"
+        rp_short = primary_label_fixed.replace("SLR + ", "RP").replace("-yr", "")  # "RP100" from "SLR + 100-yr"
+        if rp_short == "SLR only":
+            rp_short = "SLRonly"
+
+        # Dynamic name format: "Flood_SSP245_2050_p50_RP100"
+        dynamic_name_raster = f"Flood_{ssp_short}_{year_str}_{pctl_short}_{rp_short}"
+        dynamic_name_aoi = f"AOI_Stats_{ssp_short}_{year_str}_{pctl_short}_{rp_short}"
+
+        # Set layer names for better identification
+        try:
+            primary_layer = QgsProcessingUtils.mapLayerFromString(primary_path, context)
+            if primary_layer:
+                primary_layer.setName(dynamic_name_raster)
+                feedback.pushInfo(f"✓ Output raster named: {dynamic_name_raster}")
+        except:
+            pass  # Layer naming is optional, don't fail if it doesn't work
+
+        if out_primary_aoi_sink:
+            try:
+                aoi_layer = QgsProcessingUtils.mapLayerFromString(out_primary_aoi_sink, context)
+                if aoi_layer:
+                    aoi_layer.setName(dynamic_name_aoi)
+                    feedback.pushInfo(f"✓ Output AOI named: {dynamic_name_aoi}")
+            except:
+                pass
+
         return {self.O_RASTER: primary_path, self.O_AOI: out_primary_aoi_sink}

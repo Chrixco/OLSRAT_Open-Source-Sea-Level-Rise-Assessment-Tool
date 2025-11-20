@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from qgis.core import (QgsProcessing, QgsProcessingAlgorithm, QgsProcessingParameterRasterLayer, QgsProcessingParameterRasterDestination)
+from qgis.core import (QgsProcessing, QgsProcessingAlgorithm, QgsProcessingParameterRasterLayer, QgsProcessingParameterRasterDestination, QgsProcessingUtils)
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 import processing
@@ -13,14 +13,30 @@ class AlgSlope(QgsProcessingAlgorithm):
         self.addParameter(QgsProcessingParameterRasterDestination(self.OUTPUT_SLOPE, self.tr("Slope (degrees)")))
 
     def processAlgorithm(self, parameters, context, feedback):
+        dem = self.parameterAsRasterLayer(parameters, self.INPUT_DEM, context)
         result = processing.run("gdal:slope", {
-            "INPUT": self.parameterAsRasterLayer(parameters, self.INPUT_DEM, context).source(),
+            "INPUT": dem.source(),
             "BAND": 1,
             "SCALE": 1.0,
             "OUTPUT": parameters[self.OUTPUT_SLOPE],
             "COMPUTE_EDGES": True,
             "SLOPE_FORMAT": 1
         }, context=context, feedback=feedback)
+
+        # Generate dynamic name for output
+        input_name = dem.name()
+        clean_name = input_name.replace('.tif', '').replace('.tiff', '').replace('_DEM', '').replace('DEM', '')
+        dynamic_name = f"{clean_name}_slope"
+
+        # Set layer name
+        try:
+            output_layer = QgsProcessingUtils.mapLayerFromString(result["OUTPUT"], context)
+            if output_layer:
+                output_layer.setName(dynamic_name)
+                feedback.pushInfo(f"✓ Output named: {dynamic_name}")
+        except:
+            pass
+
         return {self.OUTPUT_SLOPE: result["OUTPUT"]}
 
     def name(self): return "slope_analysis"

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from qgis.core import (QgsProcessing, QgsProcessingAlgorithm, QgsProcessingParameterRasterLayer, QgsProcessingParameterRasterDestination)
+from qgis.core import (QgsProcessing, QgsProcessingAlgorithm, QgsProcessingParameterRasterLayer, QgsProcessingParameterRasterDestination, QgsProcessingUtils)
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 import processing
@@ -13,13 +13,29 @@ class AlgAspect(QgsProcessingAlgorithm):
         self.addParameter(QgsProcessingParameterRasterDestination(self.OUTPUT_ASPECT, self.tr("Aspect (0-360)")))
 
     def processAlgorithm(self, parameters, context, feedback):
+        dem = self.parameterAsRasterLayer(parameters, self.INPUT_DEM, context)
         result = processing.run("gdal:aspect", {
-            "INPUT": self.parameterAsRasterLayer(parameters, self.INPUT_DEM, context).source(),
+            "INPUT": dem.source(),
             "BAND": 1,
             "TRIG_ANGLE": False,
             "ZERO_FLAT": False,
             "OUTPUT": parameters[self.OUTPUT_ASPECT],
         }, context=context, feedback=feedback)
+
+        # Generate dynamic name for output
+        input_name = dem.name()
+        clean_name = input_name.replace('.tif', '').replace('.tiff', '').replace('_DEM', '').replace('DEM', '')
+        dynamic_name = f"{clean_name}_aspect"
+
+        # Set layer name
+        try:
+            output_layer = QgsProcessingUtils.mapLayerFromString(result["OUTPUT"], context)
+            if output_layer:
+                output_layer.setName(dynamic_name)
+                feedback.pushInfo(f"✓ Output named: {dynamic_name}")
+        except:
+            pass
+
         return {self.OUTPUT_ASPECT: result["OUTPUT"]}
 
     def name(self): return "aspect_analysis"
