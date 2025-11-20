@@ -143,15 +143,51 @@ class AlgFetchOSMData(QgsProcessingAlgorithm):
         data_type_idx = self.parameterAsEnum(parameters, self.DATA_TYPE, context)
         include_attributes = self.parameterAsBoolean(parameters, self.INCLUDE_ATTRIBUTES, context)
 
+        # Validate extent is provided and not empty
+        if extent is None or extent.isEmpty() or extent.isNull():
+            raise QgsProcessingException(
+                "Area of Interest is required.\n\n"
+                "Please define an extent by:\n"
+                "1. Drawing a rectangle on the map canvas, OR\n"
+                "2. Using 'Calculate from Layer' to use a layer's extent, OR\n"
+                "3. Entering coordinates manually\n\n"
+                "The extent cannot be empty."
+            )
+
+        # Check for NaN values in extent (happens when extent is not properly set)
+        try:
+            if (not (-180 <= extent.xMinimum() <= 180) or
+                not (-180 <= extent.xMaximum() <= 180) or
+                not (-90 <= extent.yMinimum() <= 90) or
+                not (-90 <= extent.yMaximum() <= 90)):
+                # Values are out of range or NaN
+                raise ValueError("Invalid extent coordinates")
+        except (ValueError, TypeError):
+            raise QgsProcessingException(
+                "Invalid extent coordinates detected.\n\n"
+                "The extent appears to be empty or invalid. "
+                "Please draw a rectangle on the map or select a valid extent."
+            )
+
         # Transform extent to WGS84 (required by Overpass API)
         extent_crs = self.parameterAsExtentCrs(parameters, self.EXTENT, context)
         wgs84 = QgsCoordinateReferenceSystem("EPSG:4326")
 
-        if extent_crs != wgs84:
-            transform = QgsCoordinateTransform(extent_crs, wgs84, context.transformContext())
-            extent_wgs84 = transform.transformBoundingBox(extent)
-        else:
-            extent_wgs84 = extent
+        try:
+            if extent_crs != wgs84:
+                transform = QgsCoordinateTransform(extent_crs, wgs84, context.transformContext())
+                extent_wgs84 = transform.transformBoundingBox(extent)
+            else:
+                extent_wgs84 = extent
+        except Exception as e:
+            raise QgsProcessingException(
+                f"Failed to transform extent to WGS84: {str(e)}\n\n"
+                "This usually happens when:\n"
+                "1. No extent was selected (please draw a rectangle on the map)\n"
+                "2. The extent coordinates are invalid or outside the valid range\n"
+                "3. The source CRS cannot be transformed to WGS84\n\n"
+                "Please ensure you have drawn a valid extent on the map canvas."
+            )
 
         # Get bounding box coordinates with validation
         try:
