@@ -245,6 +245,23 @@ class AlgFetchOSMData(QgsProcessingAlgorithm):
 
         feedback.pushInfo(f"Successfully fetched {layer.featureCount()} features")
 
+        # Generate dynamic name for output
+        data_type_short = self.DATA_TYPES[data_type_idx].replace(" (all)", "").replace(" (", "_").replace(")", "").replace(" ", "_")
+        # Create area identifier from coordinates
+        center_lat = (north + south) / 2
+        center_lon = (east + west) / 2
+        area_name = f"Lat{center_lat:.2f}_Lon{center_lon:.2f}".replace(".", "p").replace("-", "m")
+
+        # Dynamic name format: "OSM_Buildings_Lat25p5_Lonm80p2"
+        dynamic_name = f"OSM_{data_type_short}_{area_name}"
+
+        # Set layer name
+        try:
+            layer.setName(dynamic_name)
+            feedback.pushInfo(f"✓ Output layer named: {dynamic_name}")
+        except:
+            pass
+
         # Return the layer
         return {self.OUTPUT: layer.id()}
 

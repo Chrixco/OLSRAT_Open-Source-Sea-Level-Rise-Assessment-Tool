@@ -263,6 +263,26 @@ class AlgFetchDEM(QgsProcessingAlgorithm):
         res = processing.run("gdal:translate", {
             "INPUT": out, "TARGET_CRS": crs, "OUTPUT": p[self.OUTPUT]
         }, context=context, feedback=feedback, is_child_algorithm=True)
+
+        # Generate dynamic name for output
+        dem_type_name = demtype.replace("COP", "Copernicus")  # "Copernicus90" or "Copernicus30"
+        # Create area identifier from coordinates (center point)
+        center_lat = (north + south) / 2
+        center_lon = (east + west) / 2
+        area_name = f"Lat{center_lat:.2f}_Lon{center_lon:.2f}".replace(".", "p").replace("-", "m")
+
+        # Dynamic name format: "DEM_Copernicus90_Lat25p5_Lonm80p2"
+        dynamic_name = f"DEM_{dem_type_name}_{area_name}"
+
+        # Set layer name
+        try:
+            output_layer = QgsProcessingUtils.mapLayerFromString(res["OUTPUT"], context)
+            if output_layer:
+                output_layer.setName(dynamic_name)
+                feedback.pushInfo(f"✓ Output DEM named: {dynamic_name}")
+        except:
+            pass
+
         return {self.OUTPUT: res["OUTPUT"]}
 
     def createInstance(self): 
