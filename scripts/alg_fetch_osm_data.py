@@ -254,12 +254,14 @@ class AlgFetchOSMData(QgsProcessingAlgorithm):
         # Dynamic name format: "OSM_Buildings_Lat25p5_Lonm80p2"
         dynamic_name = f"OSM_{data_type_short}_{area_name}"
 
-        # Set layer name
-        try:
-            layer.setName(dynamic_name)
-            feedback.pushInfo(f"✓ Output layer named: {dynamic_name}")
-        except:
-            pass
+        # Set layer name before adding to project
+        layer.setName(dynamic_name)
+
+        # Add layer to project if not already added
+        if not QgsProject.instance().mapLayer(layer.id()):
+            QgsProject.instance().addMapLayer(layer, True)
+
+        feedback.pushInfo(f"✓ Output layer named: {dynamic_name}")
 
         # Return the layer
         return {self.OUTPUT: layer.id()}
