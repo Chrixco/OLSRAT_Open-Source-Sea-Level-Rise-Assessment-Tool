@@ -69,6 +69,16 @@ class AlgFetchDEM(QgsProcessingAlgorithm):
         clip= self.parameterAsBoolean(p, self.CLIP, context)
         api_key = self.parameterAsString(p, self.API_KEY, context)
 
+        # Convert pixel size to degrees if target CRS is geographic
+        if crs.isGeographic():
+            # Approximate conversion: 1 degree ≈ 111,320 meters at equator
+            # User specified meters, convert to degrees
+            px_degrees = px / 111320.0
+            feedback.pushWarning(
+                f"Target CRS is geographic (degrees). Converting pixel size from {px}m to {px_degrees:.8f}°"
+            )
+            px = px_degrees
+
         # --- Validate extent is provided ---
         if ext is None or ext.isEmpty():
             raise QgsProcessingException(
