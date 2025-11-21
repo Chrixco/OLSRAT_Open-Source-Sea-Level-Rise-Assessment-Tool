@@ -154,14 +154,13 @@ class AlgFetchOSMData(QgsProcessingAlgorithm):
                 "The extent cannot be empty."
             )
 
-        # Check for NaN values in extent (happens when extent is not properly set)
+        # Check for NaN/infinity values in extent (happens when extent is not properly set)
+        # Note: Don't check geographic bounds here since input could be in any CRS
+        import math
         try:
-            if (not (-180 <= extent.xMinimum() <= 180) or
-                not (-180 <= extent.xMaximum() <= 180) or
-                not (-90 <= extent.yMinimum() <= 90) or
-                not (-90 <= extent.yMaximum() <= 90)):
-                # Values are out of range or NaN
-                raise ValueError("Invalid extent coordinates")
+            coords = [extent.xMinimum(), extent.xMaximum(), extent.yMinimum(), extent.yMaximum()]
+            if any(math.isnan(c) or math.isinf(c) for c in coords):
+                raise ValueError("NaN or infinity in coordinates")
         except (ValueError, TypeError):
             raise QgsProcessingException(
                 "Invalid extent coordinates detected.\n\n"
