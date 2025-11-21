@@ -96,10 +96,6 @@ class AlgFetchOSMData(QgsProcessingAlgorithm):
         <p><b>API:</b> Uses Overpass API (https://overpass-api.de/)</p>
         """
 
-    def icon(self):
-        return QIcon(os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                                  "Icons", "Data_Prep_Logo", "Assets.xcassets",
-                                  "AppIcon.appiconset", "_", "32.png"))
 
     def createInstance(self):
         return AlgFetchOSMData()
@@ -512,20 +508,20 @@ class AlgFetchOSMData(QgsProcessingAlgorithm):
                 if 'building:levels' in tags and 'building_levels' in field_names:
                     try:
                         feature.setAttribute("building_levels", int(tags['building:levels']))
-                    except:
-                        pass
+                    except (ValueError, TypeError):
+                        pass  # Invalid numeric value, skip
                 if 'height' in tags and 'height' in field_names:
                     try:
                         # Remove 'm' suffix if present
                         height_str = tags['height'].replace('m', '').strip()
                         feature.setAttribute("height", float(height_str))
-                    except:
-                        pass
+                    except (ValueError, TypeError, AttributeError):
+                        pass  # Invalid height value, skip
                 if 'roof:levels' in tags and 'roof_levels' in field_names:
                     try:
                         feature.setAttribute("roof_levels", int(tags['roof:levels']))
-                    except:
-                        pass
+                    except (ValueError, TypeError):
+                        pass  # Invalid numeric value, skip
                 if 'building:material' in tags and 'building_material' in field_names:
                     feature.setAttribute("building_material", tags['building:material'])
                 if 'amenity' in tags and 'amenity' in field_names:
@@ -544,13 +540,13 @@ class AlgFetchOSMData(QgsProcessingAlgorithm):
                     try:
                         width_str = tags['width'].replace('m', '').strip()
                         feature.setAttribute("width", float(width_str))
-                    except:
-                        pass
+                    except (ValueError, TypeError, AttributeError):
+                        pass  # Invalid width value, skip
                 if 'lanes' in tags and 'lanes' in field_names:
                     try:
                         feature.setAttribute("lanes", int(tags['lanes']))
-                    except:
-                        pass
+                    except (ValueError, TypeError):
+                        pass  # Invalid lanes value, skip
                 if 'maxspeed' in tags and 'maxspeed' in field_names:
                     feature.setAttribute("maxspeed", tags['maxspeed'])
 

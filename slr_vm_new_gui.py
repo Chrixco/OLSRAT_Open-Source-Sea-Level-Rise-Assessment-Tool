@@ -456,28 +456,44 @@ class SlrVmNewGui(QDialog):
         """Open the interactive visualization dashboard"""
         QgsMessageLog.logMessage("Opening Interactive Data Visualization Dashboard", "OSLRAT", Qgis.Info)
         try:
-            # Check if already open
+            # Check if already open (with proper Qt state check)
             if self._viz_dialog is not None:
-                self._viz_dialog.show()
-                self._viz_dialog.raise_()
-                self._viz_dialog.activateWindow()
-                QgsMessageLog.logMessage("Reusing existing visualization dialog", "OSLRAT", Qgis.Info)
-                return
+                # Verify the dialog still exists (Qt may have deleted it)
+                try:
+                    self._viz_dialog.isVisible()  # Will raise if deleted
+                    self._viz_dialog.show()
+                    self._viz_dialog.raise_()
+                    self._viz_dialog.activateWindow()
+                    QgsMessageLog.logMessage("Reusing existing visualization dialog", "OSLRAT", Qgis.Info)
+                    return
+                except (RuntimeError, AttributeError):
+                    # Dialog was deleted, clear reference and create new
+                    self._viz_dialog = None
+
+            # Prevent race condition by setting placeholder immediately
+            # (will be replaced with actual dialog below, or None if creation fails)
+            self._viz_dialog = object()  # Placeholder to prevent concurrent creation
 
             # Create new dialog
-            self._viz_dialog = SlrVmVisualizationDialog(self)
+            dialog = SlrVmVisualizationDialog(self)
+
+            # Replace placeholder with actual dialog
+            self._viz_dialog = dialog
 
             # Cleanup reference when destroyed
-            self._viz_dialog.destroyed.connect(
+            dialog.destroyed.connect(
                 lambda: setattr(self, '_viz_dialog', None)
             )
 
             # Show non-modally (allows interaction with main GUI and map)
-            self._viz_dialog.show()
+            dialog.show()
 
             QgsMessageLog.logMessage("Created new visualization dialog", "OSLRAT", Qgis.Info)
 
         except Exception as e:
+            # Clear placeholder on error
+            self._viz_dialog = None
+
             QgsMessageLog.logMessage(
                 f"Error opening visualization dashboard: {str(e)}",
                 "OSLRAT", level=Qgis.Critical
@@ -523,7 +539,8 @@ class SlrVmNewGui(QDialog):
         if self._viz_dialog is not None:
             try:
                 self._viz_dialog.close()
-            except:
+            except (RuntimeError, AttributeError):
+                # Dialog may already be deleted by Qt
                 pass
             self._viz_dialog = None
 

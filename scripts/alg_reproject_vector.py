@@ -168,7 +168,7 @@ class AlgReprojectVector(QgsProcessingAlgorithm):
             if output_layer:
                 output_layer.setName(dynamic_name)
                 feedback.pushInfo(f"✓ Output layer named: {dynamic_name}")
-        except:
-            pass  # Layer naming is optional, don't fail if it doesn't work
+        except Exception as e:
+            feedback.pushDebugInfo(f"Could not set output layer name: {str(e)}")
 
         return {self.OUTPUT: dest_id}

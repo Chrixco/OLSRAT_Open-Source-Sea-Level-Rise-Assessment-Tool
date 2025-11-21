@@ -763,8 +763,8 @@ class DemFloodScenarioAlgorithmWithReturnPeriod(QgsProcessingAlgorithm):
             if primary_layer:
                 primary_layer.setName(dynamic_name_raster)
                 feedback.pushInfo(f"✓ Output raster named: {dynamic_name_raster}")
-        except:
-            pass  # Layer naming is optional, don't fail if it doesn't work
+        except Exception as e:
+            feedback.pushDebugInfo(f"Could not set raster layer name: {str(e)}")
 
         if out_primary_aoi_sink:
             try:
@@ -772,7 +772,7 @@ class DemFloodScenarioAlgorithmWithReturnPeriod(QgsProcessingAlgorithm):
                 if aoi_layer:
                     aoi_layer.setName(dynamic_name_aoi)
                     feedback.pushInfo(f"✓ Output AOI named: {dynamic_name_aoi}")
-            except:
-                pass
+            except Exception as e:
+                feedback.pushDebugInfo(f"Could not set AOI layer name: {str(e)}")
 
         return {self.O_RASTER: primary_path, self.O_AOI: out_primary_aoi_sink}

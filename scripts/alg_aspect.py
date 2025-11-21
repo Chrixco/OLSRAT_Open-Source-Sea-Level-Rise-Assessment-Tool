@@ -33,8 +33,8 @@ class AlgAspect(QgsProcessingAlgorithm):
             if output_layer:
                 output_layer.setName(dynamic_name)
                 feedback.pushInfo(f"✓ Output named: {dynamic_name}")
-        except:
-            pass
+        except Exception as e:
+            feedback.pushDebugInfo(f"Could not set output layer name: {str(e)}")
 
         return {self.OUTPUT_ASPECT: result["OUTPUT"]}
 

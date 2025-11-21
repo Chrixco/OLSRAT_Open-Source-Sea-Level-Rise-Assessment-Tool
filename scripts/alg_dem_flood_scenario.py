@@ -71,30 +71,72 @@ class DemFloodScenarioAlgorithm(QgsProcessingAlgorithm):
             return []
 
     def _level_from_csv(self, csv_path, ssp_ui, year_str, pctl_ui):
+        """
+        Safely read sea level rise value from CSV with validation against CSV injection
+        """
         if not os.path.exists(csv_path):
             raise QgsProcessingException(f"AR6 CSV not found: {csv_path}")
+
+        # Validate file size (prevent memory exhaustion)
+        file_size = os.path.getsize(csv_path)
+        MAX_CSV_SIZE = 10 * 1024 * 1024  # 10 MB
+        if file_size > MAX_CSV_SIZE:
+            raise QgsProcessingException(
+                f"CSV file too large ({file_size / 1024 / 1024:.1f} MB). Maximum: {MAX_CSV_SIZE / 1024 / 1024:.0f} MB"
+            )
+
         scenario_code = self._SSP_MAP[ssp_ui]
         quant = self._PCTL_MAP[pctl_ui]
 
-        with open(csv_path, "r", newline="", encoding="utf-8-sig") as f:
-            rdr = csv.DictReader(f)
-            required = {"process","scenario","quantile",year_str}
-            missing = required.difference(set(rdr.fieldnames or []))
-            if missing:
-                raise QgsProcessingException(f"CSV missing columns: {', '.join(sorted(missing))}")
-            for row in rdr:
-                if row.get("process","").strip().lower() != "total": continue
-                if row.get("scenario","").strip().lower() != scenario_code: continue
-                try:
-                    if int(row.get("quantile","-1")) != quant: continue
-                except Exception:
-                    continue
-                try:
-                    return float(row[year_str])
-                except Exception:
-                    raise QgsProcessingException(
-                        f"Non-numeric SLR for {ssp_ui}/{year_str}/{pctl_ui}: {row.get(year_str)}"
-                    )
+        try:
+            with open(csv_path, "r", newline="", encoding="utf-8-sig") as f:
+                rdr = csv.DictReader(f)
+                required = {"process","scenario","quantile",year_str}
+                missing = required.difference(set(rdr.fieldnames or []))
+                if missing:
+                    raise QgsProcessingException(f"CSV missing columns: {', '.join(sorted(missing))}")
+
+                for row_num, row in enumerate(rdr, start=2):  # Start at 2 (header is row 1)
+                    # Limit number of rows processed (prevent DoS)
+                    if row_num > 10000:
+                        raise QgsProcessingException("CSV has too many rows (>10000). File may be corrupted.")
+
+                    if row.get("process","").strip().lower() != "total":
+                        continue
+                    if row.get("scenario","").strip().lower() != scenario_code:
+                        continue
+                    try:
+                        if int(row.get("quantile","-1")) != quant:
+                            continue
+                    except (ValueError, TypeError):
+                        continue
+
+                    # Get and validate the sea level value
+                    slr_value_str = row.get(year_str, "").strip()
+
+                    # Prevent CSV injection: reject values starting with formula characters
+                    if slr_value_str and slr_value_str[0] in ('=', '+', '-', '@', '\t', '\r'):
+                        raise QgsProcessingException(
+                            f"Invalid data format in CSV at row {row_num}. "
+                            "Value appears to contain formula characters."
+                        )
+
+                    try:
+                        slr_value = float(slr_value_str)
+                        # Sanity check: sea level rise should be reasonable (-5m to +10m by 2150)
+                        if not (-5.0 <= slr_value <= 10.0):
+                            raise ValueError(f"Sea level value {slr_value} outside reasonable range")
+                        return slr_value
+                    except (ValueError, TypeError) as e:
+                        raise QgsProcessingException(
+                            f"Non-numeric SLR for {ssp_ui}/{year_str}/{pctl_ui} at row {row_num}: '{slr_value_str}'"
+                        )
+
+        except csv.Error as e:
+            raise QgsProcessingException(f"CSV parsing error: {str(e)}")
+        except UnicodeDecodeError as e:
+            raise QgsProcessingException(f"CSV encoding error: {str(e)}. File may be corrupted.")
+
         raise QgsProcessingException(
             f"No CSV match for process=total, scenario={scenario_code}, quantile={quant}, year={year_str}."
         )
@@ -373,8 +415,8 @@ class DemFloodScenarioAlgorithm(QgsProcessingAlgorithm):
             if flooded_layer:
                 flooded_layer.setName(dynamic_name_raster)
                 feedback.pushInfo(f"✓ Output raster named: {dynamic_name_raster}")
-        except:
-            pass  # Layer naming is optional, don't fail if it doesn't work
+        except Exception as e:
+            feedback.pushDebugInfo(f"Could not set raster layer name: {str(e)}")
 
         if aoi_out:
             try:
@@ -382,8 +424,8 @@ class DemFloodScenarioAlgorithm(QgsProcessingAlgorithm):
                 if aoi_layer:
                     aoi_layer.setName(dynamic_name_aoi)
                     feedback.pushInfo(f"✓ Output AOI named: {dynamic_name_aoi}")
-            except:
-                pass
+            except Exception as e:
+                feedback.pushDebugInfo(f"Could not set AOI layer name: {str(e)}")
 
         return {self.O_RASTER: flooded_path, self.O_AOI: aoi_out}
 

@@ -41,9 +41,11 @@ class AlgSVI(QgsProcessingAlgorithm):
         (sink, dest) = self.parameterAsSink(p, self.OUTPUT, context, flds, src.wkbType(), src.sourceCrs())
 
         feats = list(src.getFeatures())
-        def tofloat(v): 
-            try: return float(v) if v is not None else None
-            except: return None
+        def tofloat(v):
+            try:
+                return float(v) if v is not None else None
+            except (ValueError, TypeError):
+                return None
         def norm(col):
             vals=[tofloat(v) for v in col]; clean=[v for v in vals if v is not None]
             if not clean: return [None]*len(vals)

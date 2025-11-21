@@ -3,11 +3,19 @@ from qgis.core import (
     QgsProcessingParameterCrs, QgsProcessingParameterNumber, QgsProcessingParameterExtent,
     QgsProcessingParameterEnum, QgsProcessingParameterBoolean, QgsProcessingParameterRasterDestination,
     QgsProcessingException, QgsCoordinateReferenceSystem, QgsProcessingParameterString,
-    QgsCoordinateTransform, QgsRectangle
+    QgsCoordinateTransform, QgsRectangle, QgsProcessingUtils
 )
 from qgis.PyQt.QtGui import QIcon
 from qgis import processing
 import requests, tempfile, os
+
+# Constants for coordinate conversions and limits
+METERS_PER_DEGREE_AT_EQUATOR = 111320.0  # Approximate meters per degree latitude at equator
+MAX_AREA_DEGREES_SQUARED = 5.0  # Maximum area for DEM downloads (degrees²)
+WARNING_AREA_DEGREES_SQUARED = 0.5  # Threshold for large area warning
+MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024  # 500 MB maximum download size
+DOWNLOAD_TIMEOUT_SECONDS = 60  # HTTP request timeout
+DOWNLOAD_CHUNK_SIZE = 8192  # Bytes to download per iteration
 
 class AlgFetchDEM(QgsProcessingAlgorithm):
     DEM_TYPE     = "DEM_TYPE"
@@ -71,9 +79,8 @@ class AlgFetchDEM(QgsProcessingAlgorithm):
 
         # Convert pixel size to degrees if target CRS is geographic
         if crs.isGeographic():
-            # Approximate conversion: 1 degree ≈ 111,320 meters at equator
-            # User specified meters, convert to degrees
-            px_degrees = px / 111320.0
+            # User specified meters, convert to degrees using standard approximation
+            px_degrees = px / METERS_PER_DEGREE_AT_EQUATOR
             feedback.pushWarning(
                 f"Target CRS is geographic (degrees). Converting pixel size from {px}m to {px_degrees:.8f}°"
             )
@@ -130,16 +137,15 @@ class AlgFetchDEM(QgsProcessingAlgorithm):
         height = north - south
         area_deg = width * height
 
-        # Maximum area limit: 5 degrees squared (~555km x 555km at equator)
-        MAX_AREA_DEG = 5.0
-        if area_deg > MAX_AREA_DEG:
+        # Check against maximum area limit
+        if area_deg > MAX_AREA_DEGREES_SQUARED:
             raise QgsProcessingException(
-                f"Area too large ({area_deg:.2f}°²). Maximum allowed: {MAX_AREA_DEG}°². "
+                f"Area too large ({area_deg:.2f}°²). Maximum allowed: {MAX_AREA_DEGREES_SQUARED}°². "
                 "Please use a smaller extent. For large areas, download tiles separately."
             )
 
-        # Warn if moderately large (>0.5°²)
-        if area_deg > 0.5:
+        # Warn if moderately large
+        if area_deg > WARNING_AREA_DEGREES_SQUARED:
             feedback.pushWarning(
                 f"⚠ Large area requested ({area_deg:.2f}°²). Download may take several minutes."
             )
@@ -189,9 +195,9 @@ class AlgFetchDEM(QgsProcessingAlgorithm):
         try:
             # Add proper headers for identification
             headers = {
-                'User-Agent': 'QGIS-SLR-Vulnerability-Mapper/0.1 (QGIS Plugin)'
+                'User-Agent': 'OSLRAT/0.2 (QGIS Plugin; +https://github.com/Chrixco/OLSRAT_Open-Source-Sea-Level-Rise-Assessment-Tool)'
             }
-            r = requests.get(base_url, params=params, headers=headers, stream=True, timeout=60)
+            r = requests.get(base_url, params=params, headers=headers, stream=True, timeout=DOWNLOAD_TIMEOUT_SECONDS)
 
             if r.status_code == 429:
                 raise QgsProcessingException(
@@ -213,25 +219,24 @@ class AlgFetchDEM(QgsProcessingAlgorithm):
             feedback.setProgress(30)
             total_size = int(r.headers.get('content-length', 0))
 
-            # Safety check: max file size 500MB (reasonable for DEM tiles)
-            MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
-            if total_size > MAX_FILE_SIZE:
+            # Safety check: max file size
+            if total_size > MAX_FILE_SIZE_BYTES:
                 raise QgsProcessingException(
                     f"File too large ({total_size / 1024 / 1024:.1f} MB). "
-                    f"Maximum allowed: {MAX_FILE_SIZE / 1024 / 1024:.0f} MB. "
+                    f"Maximum allowed: {MAX_FILE_SIZE_BYTES / 1024 / 1024:.0f} MB. "
                     "Please use a smaller extent."
                 )
 
             downloaded = 0
             with open(tmpfile.name, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
+                for chunk in r.iter_content(chunk_size=DOWNLOAD_CHUNK_SIZE):
                     if feedback.isCanceled():
                         raise QgsProcessingException("Download canceled by user.")
                     f.write(chunk)
                     downloaded += len(chunk)
 
                     # Secondary check during download
-                    if downloaded > MAX_FILE_SIZE:
+                    if downloaded > MAX_FILE_SIZE_BYTES:
                         raise QgsProcessingException(
                             "Download exceeded maximum file size. Operation aborted."
                         )
@@ -289,8 +294,8 @@ class AlgFetchDEM(QgsProcessingAlgorithm):
                 if output_layer:
                     output_layer.setName(dynamic_name)
                     feedback.pushInfo(f"✓ Output DEM named: {dynamic_name}")
-            except:
-                pass
+            except Exception as e:
+                feedback.pushDebugInfo(f"Could not set output layer name: {str(e)}")
 
             return {self.OUTPUT: res["OUTPUT"]}
 
@@ -315,8 +320,8 @@ class AlgFetchDEM(QgsProcessingAlgorithm):
             if output_layer:
                 output_layer.setName(dynamic_name)
                 feedback.pushInfo(f"✓ Output DEM named: {dynamic_name}")
-        except:
-            pass
+        except Exception as e:
+            feedback.pushDebugInfo(f"Could not set output layer name: {str(e)}")
 
         return {self.OUTPUT: res["OUTPUT"]}
 

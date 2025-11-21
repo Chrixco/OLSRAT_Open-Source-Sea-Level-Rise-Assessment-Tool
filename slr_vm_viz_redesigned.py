@@ -10,7 +10,7 @@ from qgis.PyQt.QtWidgets import (
     QWidget, QProgressBar, QMessageBox, QFileDialog, QTextEdit, QSplitter,
     QRadioButton, QButtonGroup, QScrollArea, QFrame, QCheckBox, QSpinBox, QGridLayout
 )
-from qgis.PyQt.QtCore import Qt, QThread, pyqtSignal
+from qgis.PyQt.QtCore import Qt, QThread, pyqtSignal, QMutex, QMutexLocker
 from qgis.PyQt.QtGui import QIcon, QColor, QFont
 from qgis.core import (
     QgsProject, QgsVectorLayer, QgsMessageLog, Qgis
@@ -302,18 +302,29 @@ class AnalysisWorker(QThread):
         self.pop_field = pop_field
         self.proportional = proportional
         self.results = {}
-        self.abort = False  # Flag for aborting analysis
+        self._abort = False  # Flag for aborting analysis
+        self._mutex = QMutex()  # Thread-safe access to abort flag
+
+    def request_abort(self):
+        """Thread-safe method to request worker abort"""
+        with QMutexLocker(self._mutex):
+            self._abort = True
+
+    def is_aborted(self):
+        """Thread-safe method to check if abort was requested"""
+        with QMutexLocker(self._mutex):
+            return self._abort
 
     def run(self):
         try:
             # Check abort before starting
-            if self.abort:
+            if self.is_aborted():
                 return
 
             self.status.emit("Analyzing data...")
             self.progress.emit(20)
 
-            if self.abort:
+            if self.is_aborted():
                 self.status.emit("Analysis aborted")
                 return
 
@@ -324,13 +335,13 @@ class AnalysisWorker(QThread):
             elif self.analysis_type == "distribution":
                 self.results = self.calculate_distribution()
 
-            if not self.abort:
+            if not self.is_aborted():
                 self.finished.emit(self.results)
             else:
                 self.status.emit("Analysis aborted")
 
         except Exception as e:
-            if not self.abort:
+            if not self.is_aborted():
                 self.error.emit(str(e))
 
     def calculate_area_comparison(self):
@@ -2421,9 +2432,9 @@ class SlrVmVisualizationDialog(QDialog):
                     Qgis.Info
                 )
 
-                # Set abort flag (worker should check this)
+                # Set abort flag using thread-safe method
                 self._abort_analysis = True
-                self.worker.abort = True
+                self.worker.request_abort()
 
                 # Wait for graceful shutdown
                 if not self.worker.wait(3000):  # 3 second timeout
