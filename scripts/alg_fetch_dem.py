@@ -253,10 +253,35 @@ class AlgFetchDEM(QgsProcessingAlgorithm):
 
         # --- Clip if requested ---
         if clip and ext and not ext.isEmpty():
+            # Transform extent to target CRS for clipping
+            extent_crs = self.parameterAsExtentCrs(p, self.EXTENT, context)
+            if extent_crs != crs:
+                transform = QgsCoordinateTransform(extent_crs, crs, context.transformContext())
+                ext_target = transform.transformBoundingBox(ext)
+            else:
+                ext_target = ext
+
             res = processing.run("gdal:cliprasterbyextent", {
-                "INPUT": out, "PROJWIN": ext, "NODATA": None, "OPTIONS": "", "DATA_TYPE": 0,
+                "INPUT": out, "PROJWIN": ext_target, "NODATA": None, "OPTIONS": "", "DATA_TYPE": 0,
                 "OUTPUT": p[self.OUTPUT]
             }, context=context, feedback=feedback, is_child_algorithm=True)
+
+            # Generate dynamic name for clipped output
+            dem_type_name = demtype.replace("COP", "Copernicus")
+            center_lat = (north + south) / 2
+            center_lon = (east + west) / 2
+            area_name = f"Lat{center_lat:.2f}_Lon{center_lon:.2f}".replace(".", "p").replace("-", "m")
+            dynamic_name = f"DEM_{dem_type_name}_{area_name}"
+
+            # Set layer name
+            try:
+                output_layer = QgsProcessingUtils.mapLayerFromString(res["OUTPUT"], context)
+                if output_layer:
+                    output_layer.setName(dynamic_name)
+                    feedback.pushInfo(f"✓ Output DEM named: {dynamic_name}")
+            except:
+                pass
+
             return {self.OUTPUT: res["OUTPUT"]}
 
         # --- Otherwise just save ---
